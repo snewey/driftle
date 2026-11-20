@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Driftle - the daily drift race</title>
+    <meta name="description" content="A new drift track every day. Chase the best time and race your ghost." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+
+      <div id="hud" class="hidden">
+        <div class="hud-tl">
+          <div id="hud-time">0:00.000</div>
+          <div id="hud-lap">LAP 1/3</div>
+          <div id="hud-delta"></div>
+        </div>
+        <div class="hud-tr">
+          <div class="speed"><span id="hud-speed">0</span><small>km/h</small></div>
+          <div class="bar"><div id="boost-fill"></div></div>
+          <div class="small">DRIFT CHARGE</div>
+        </div>
+        <canvas id="minimap" width="220" height="160"></canvas>
+        <div id="banner"></div>
+      </div>
+
+      <section id="menu" class="panel">
+        <header>
+          <h1>DRIFT<span>LE</span></h1>
+          <p class="tag">One track a day. One shot at the top. Drift it.</p>
+        </header>
+        <div class="grid">
+          <div class="col">
+            <div class="label">TODAY'S TRACK</div>
+            <div id="track-name" class="big">...</div>
+            <div id="day-label" class="muted"></div>
+            <div class="muted">New track in <b id="reset-timer">--:--:--</b></div>
+
+            <label class="label" for="name-input">DRIVER NAME</label>
+            <input id="name-input" maxlength="16" autocomplete="off" spellcheck="false" />
+
+            <label class="label" for="ghost-select">RACE A GHOST</label>
+            <select id="ghost-select"></select>
+
+            <button id="start-btn" class="btn primary">RACE <small>[Enter]</small></button>
+          </div>
+          <div class="col">
+            <canvas id="preview" width="360" height="240"></canvas>
+            <div class="label">YOUR BEST TIMES TODAY</div>
+            <ol id="leaderboard"></ol>
+            <div class="muted tiny" id="lb-note">Offline leaderboard. Online daily rankings are coming soon.</div>
+          </div>
+        </div>
+        <footer class="controls">
+          <span><kbd>W</kbd><kbd>↑</kbd> gas</span>
+          <span><kbd>S</kbd><kbd>↓</kbd> brake / reverse</span>
+          <span><kbd>A</kbd><kbd>D</kbd><kbd>←</kbd><kbd>→</kbd> steer</span>
+          <span><kbd>Space</kbd> handbrake (kick the tail out)</span>
+          <span><kbd>R</kbd> restart</span>
+          <span><kbd>Esc</kbd> menu</span>
+        </footer>
+        <p class="muted tiny">Tip: tap Space while turning to start a drift, hold the slide, then straighten out to cash in a drift boost.</p>
+      </section>
+
+      <section id="finish" class="panel small-panel hidden">
+        <div class="label">FINISH</div>
+        <div id="finish-time" class="huge">0:00.000</div>
+        <div id="finish-sub" class="sub"></div>
+        <ul id="finish-laps"></ul>
+        <div id="finish-rank" class="muted"></div>
+        <div class="row">
+          <button id="retry-btn" class="btn primary">RACE AGAIN <small>[R]</small></button>
+          <button id="menu-btn" class="btn">MENU <small>[Esc]</small></button>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

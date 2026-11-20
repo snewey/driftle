@@ -1,0 +1,11 @@
+node_modules
+dist
+.vercel
+
+# Secrets: never commit real keys. Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
