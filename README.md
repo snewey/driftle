@@ -83,3 +83,10 @@ only with Row Level Security turned on. The service role key must never be in th
 2. Supabase: accounts, global daily leaderboard, personal bests, shared ghosts
 3. Publish on Vercel (free Hobby plan)
 4. Polish: sound, more cars, tree/barrier collision, mobile controls
+
+
+## v0.3
+- Steering is softer (slower steering response, more speed-sensitive) and drifts turn the car more, so drifting is easier.
+- Roadside marker posts removed; trees now start just past the kerb.
+- Trees, the start gantry posts and the grandstand are solid: hitting them stops the car (shared scenery list in `src/scenery.js`, collision in `src/sim.js`).
+- Synthesised sound (`src/audio.js`, no audio files): engine with gears, tyre skid, grass rumble, countdown beeps, GO, lap ding, drift boost, crash, finish fanfare. Press `M` or click the SOUND chip to mute. Sound starts after the first click or key press (browser rule).

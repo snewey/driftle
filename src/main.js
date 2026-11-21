@@ -4,6 +4,7 @@ import { Sim, DT, PHYS } from './sim.js';
 import { GhostPlayer, packSamples, unpackSamples } from './ghost.js';
 import { Renderer } from './render3d.js';
 import { makeMinimap, drawMinimap } from './minimap.js';
+import { GameAudio } from './audio.js';
 import { LocalBackend, getSavedName, saveName } from './backend.js';
 
 const LAPS = 3;
@@ -13,6 +14,7 @@ const $ = (id) => document.getElementById(id);
 const dayKey = dayKeyUTC();
 const track = generateTrack(dayKey);
 const backend = new LocalBackend();
+const audio = new GameAudio();
 const renderer = new Renderer($('game'), track);
 const miniMap = makeMinimap(track, 220, 160);
 const previewMap = makeMinimap(track, 360, 240);
@@ -26,6 +28,7 @@ let acc = 0;
 let lastNow = performance.now();
 let bannerUntil = 0;
 let lastBanner = '';
+let lastCount = 0;
 let ghostPicked = false; // true once the player has chosen a ghost option themselves
 
 const input = { throttle: false, brake: false, left: false, right: false, handbrake: false };
@@ -121,6 +124,8 @@ function setBanner(text, ms = 0) {
 }
 
 function startRace() {
+  audio.unlock();
+  lastCount = 0;
   saveName(cleanName($('name-input').value));
   $('name-input').value = getSavedName();
   sim = new Sim(track, LAPS);
@@ -152,17 +157,26 @@ function toMenu() {
 
 function handleEvents() {
   for (const e of sim.events.splice(0)) {
-    if (e.type === 'boost') setBanner('DRIFT BOOST!', 900);
+    if (e.type === 'boost') {
+      setBanner('DRIFT BOOST!', 900);
+      audio.boost();
+    } else if (e.type === 'crash') {
+      audio.crash(e.impact);
+      renderer.kick(Math.min(1, e.impact / 500));
+      setBanner('CRASH', 700);
+    }
     else if (e.type === 'respawn') setBanner('BACK ON TRACK', 1000);
     else if (e.type === 'lap' && e.lap < LAPS) {
       const prevT = e.lap > 1 ? sim.lapTimes[e.lap - 2] : 0;
       setBanner(`LAP ${e.lap}  ${fmt((e.time - prevT) * 1000)}`, 1800);
+      audio.lap();
     } else if (e.type === 'finish') onFinish();
   }
 }
 
 async function onFinish() {
   state = 'finished';
+  audio.finish();
   setBanner('FINISH!', 2000);
   const timeMs = Math.round(sim.finishTime * 1000);
   const prevBest = pb ? pb.timeMs : null;
@@ -239,8 +253,14 @@ function frame(now) {
       state = 'racing';
       acc = 0;
       setBanner('GO!', 800);
+      audio.go();
     } else {
-      setBanner(String(Math.ceil(countdown)));
+      const n = Math.ceil(countdown);
+      if (n !== lastCount) {
+        lastCount = n;
+        audio.beep();
+      }
+      setBanner(String(n));
     }
   } else if (state === 'racing') {
     acc += real;
@@ -253,6 +273,18 @@ function frame(now) {
   if (bannerUntil && now > bannerUntil) setBanner('');
 
   const ghostPose = ghost ? ghost.at(sim.time) : null;
+  const c = sim.car;
+  const spd = Math.hypot(c.vx, c.vy);
+  const fwd = c.vx * Math.cos(c.a) + c.vy * Math.sin(c.a);
+  audio.update(real, {
+    active: state === 'racing' || state === 'countdown',
+    speed: spd / PHYS.maxSpeed,
+    throttle: state === 'racing' && input.throttle,
+    drifting: c.drifting,
+    slip: spd > 60 ? Math.min(1, Math.abs(Math.sin(Math.atan2(c.vy, c.vx) - c.a)) * Math.sign(fwd || 1) ** 2) : 0,
+    onRoad: sim.dist <= track.halfWidth + PHYS.kerb,
+    boosting: c.boostT > 0,
+  });
   renderer.orbit = state === 'menu';
   renderer.update(real, sim);
   renderer.draw(sim, ghostPose);
@@ -262,6 +294,7 @@ function frame(now) {
 
 // ---- input ---------------------------------------------------------------
 window.addEventListener('keydown', (e) => {
+  audio.unlock();
   const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
   if (typing) {
     if (e.code === 'Enter' && state === 'menu') {
@@ -269,6 +302,10 @@ window.addEventListener('keydown', (e) => {
       e.target.blur();
       startRace();
     }
+    return;
+  }
+  if (e.code === 'KeyM') {
+    setMuteUi(audio.toggleMute());
     return;
   }
   if (KEYS[e.code]) {
@@ -289,6 +326,17 @@ window.addEventListener('blur', () => {
 $('ghost-select').addEventListener('change', () => {
   ghostPicked = true;
 });
+function setMuteUi(m) {
+  $('sound-chip').textContent = m ? 'SOUND OFF' : 'SOUND ON';
+  $('sound-chip').classList.toggle('off', m);
+}
+setMuteUi(audio.muted);
+$('sound-chip').addEventListener('click', (e) => {
+  audio.unlock();
+  setMuteUi(audio.toggleMute());
+  e.currentTarget.blur(); // so Space (handbrake) doesn't press the button again
+});
+window.addEventListener('pointerdown', () => audio.unlock());
 $('start-btn').addEventListener('click', startRace);
 $('retry-btn').addEventListener('click', startRace);
 $('menu-btn').addEventListener('click', toMenu);

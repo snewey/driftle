@@ -166,3 +166,73 @@ test('ghost samples survive packing and replay at the right time', () => {
   assert.ok(Math.abs(t - sim.finishTime) < 0.2, `ghost finish ${t} vs ${sim.finishTime}`);
   console.log(`      ghost size: ${(packed.length / 1024).toFixed(1)} KB for ${sim.finishTime.toFixed(1)}s`);
 });
+
+test('scenery is the same every run and keeps the road itself clear', () => {
+  const a = generateTrack('2026-11-20');
+  const b = generateTrack('2026-11-20');
+  assert.deepEqual(a.scenery.trees, b.scenery.trees);
+  assert.ok(a.scenery.trees.length > 1000, `only ${a.scenery.trees.length} trees`);
+  for (const day of ['2026-11-20', '2026-11-21', '2026-12-05']) {
+    const t = generateTrack(day);
+    const S = t.scenery.solids;
+    let closest = Infinity;
+    for (let i = 0; i < S.n; i++) {
+      let d = Infinity;
+      for (let j = 0; j < t.n; j++) d = Math.min(d, Math.hypot(S.x[i] - t.xs[j], S.y[i] - t.ys[j]));
+      closest = Math.min(closest, d - S.r[i]);
+    }
+    assert.ok(closest > t.halfWidth + 14, `${day}: something solid reaches ${closest.toFixed(0)} from the road centre`);
+  }
+});
+
+test('driving into a tree stops the car and it cannot pass through', () => {
+  const track = generateTrack('2026-11-20');
+  const S = track.scenery.solids;
+  let pick = -1;
+  let pj = 0;
+  for (let i = 0; i < track.scenery.trees.length && pick < 0; i++) {
+    let d = Infinity;
+    let jj = 0;
+    for (let j = 0; j < track.n; j++) {
+      const dd = Math.hypot(S.x[i] - track.xs[j], S.y[i] - track.ys[j]);
+      if (dd < d) {
+        d = dd;
+        jj = j;
+      }
+    }
+    if (d < 220) {
+      pick = i;
+      pj = jj;
+    }
+  }
+  assert.ok(pick >= 0, 'no tree near the road');
+  const tx = S.x[pick];
+  const ty = S.y[pick];
+  const dx = tx - track.xs[pj];
+  const dy = ty - track.ys[pj];
+  const len = Math.hypot(dx, dy);
+  const ux = dx / len;
+  const uy = dy / len;
+  const sim = new Sim(track, 3);
+  const c = sim.car;
+  c.x = tx - ux * 90;
+  c.y = ty - uy * 90;
+  c.a = Math.atan2(uy, ux);
+  c.vx = ux * 450;
+  c.vy = uy * 450;
+  sim.idx = pj;
+  sim.lastP = pj;
+  let crashed = false;
+  let closest = Infinity;
+  for (let i = 0; i < 3 * 120; i++) {
+    sim.step({ ...NO_INPUT, throttle: true });
+    if (sim.events.some((e) => e.type === 'crash')) crashed = true;
+    sim.events.length = 0;
+    const fx = c.x + Math.cos(c.a) * 15;
+    const fy = c.y + Math.sin(c.a) * 15;
+    closest = Math.min(closest, Math.hypot(fx - tx, fy - ty) - S.r[pick]);
+  }
+  assert.ok(crashed, 'no crash event');
+  assert.ok(closest > 13, `the car went inside the tree (${closest.toFixed(1)})`);
+  assert.ok(Math.hypot(c.vx, c.vy) < 150, `still doing ${Math.hypot(c.vx, c.vy).toFixed(0)} after hitting a tree head on`);
+});

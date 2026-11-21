@@ -384,6 +384,7 @@ export class Renderer {
     this.orbitT = 0;
     this.yaw = 0;
     this.spin = 0;
+    this.shakeT = 0;
 
     const gl = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     gl.shadowMap.enabled = true;
@@ -523,36 +524,11 @@ export class Renderer {
   buildScenery() {
     const T = this.track;
     const th = this.theme;
-    const rng = mulberry32(hashString('scenery:' + T.dayKey));
+    const rng = mulberry32(hashString('mountains:' + T.dayKey));
 
-    // trees: InstancedMesh so thousands cost a handful of draw calls
-    const minD = T.halfWidth + 110;
-    const pineT = [];
-    const roundT = [];
-    const taken = new Set();
-    for (let k = 0; k < 6000 && pineT.length + roundT.length < 2600; k++) {
-      const i = Math.floor(rng() * T.n);
-      const side = rng() < 0.5 ? -1 : 1;
-      const off = minD + Math.pow(rng(), 1.7) * 1200;
-      const a = T.ang[i];
-      const x = T.xs[i] - Math.sin(a) * off * side + (rng() - 0.5) * 40;
-      const z = T.ys[i] + Math.cos(a) * off * side + (rng() - 0.5) * 40;
-      const cell = `${Math.floor(x / 46)},${Math.floor(z / 46)}`;
-      if (taken.has(cell)) continue;
-      if (Math.hypot(x - T.xs[0], z - T.ys[0]) < 340) continue;
-      let ok = true;
-      for (let j = 0; j < T.n; j++) {
-        const dx = x - T.xs[j];
-        const dz = z - T.ys[j];
-        if (dx * dx + dz * dz < minD * minD) {
-          ok = false;
-          break;
-        }
-      }
-      if (!ok) continue;
-      taken.add(cell);
-      (rng() < 0.62 ? pineT : roundT).push({ x, z, s: 0.8 + rng() * 0.95, r: rng() * 6.28, c: th.foliage[Math.floor(rng() * th.foliage.length)], l: (rng() - 0.5) * 0.09 });
-    }
+    // trees come from the shared scenery list, which the sim also collides with
+    const pineT = T.scenery.trees.filter((t) => t.kind === 0);
+    const roundT = T.scenery.trees.filter((t) => t.kind === 1);
 
     const barkMat = new THREE.MeshLambertMaterial({ map: this.tex(barkTexture()) });
     const leafMat = new THREE.MeshLambertMaterial({ map: this.tex(foliageTexture()) });
@@ -575,7 +551,7 @@ export class Renderer {
         dummy.updateMatrix();
         leaf.setMatrixAt(i, dummy.matrix);
         trunk.setMatrixAt(i, dummy.matrix);
-        col.set(t.c).offsetHSL(0, 0, t.l);
+        col.set(th.foliage[Math.floor(t.c * th.foliage.length)]).offsetHSL(0, 0, t.l);
         leaf.setColorAt(i, col);
       });
       for (const m of [leaf, trunk]) {
@@ -587,29 +563,6 @@ export class Renderer {
     fill(pineT, pineFoliage, pineTrunk);
     fill(roundT, roundFoliage, roundTrunk);
     this.treeCount = pineT.length + roundT.length;
-
-    // marker posts along both road edges give a strong sense of speed
-    const posts = [];
-    for (let i = 0; i < T.n; i += 6) {
-      for (const side of [-1, 1]) {
-        const a = T.ang[i];
-        const off = (T.halfWidth + KERB_W + 22) * side;
-        posts.push([T.xs[i] - Math.sin(a) * off, T.ys[i] + Math.cos(a) * off]);
-      }
-    }
-    const postMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(4, 18, 4).translate(0, 9, 0), new THREE.MeshLambertMaterial({ color: 0xf2f2f2 }), posts.length);
-    const capMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(4.2, 5, 4.2).translate(0, 15.5, 0), new THREE.MeshLambertMaterial({ color: 0xd3303f }), posts.length);
-    posts.forEach(([x, z], i) => {
-      dummy.position.set(x, 0, z);
-      dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(1, 1, 1);
-      dummy.updateMatrix();
-      postMesh.setMatrixAt(i, dummy.matrix);
-      capMesh.setMatrixAt(i, dummy.matrix);
-    });
-    postMesh.castShadow = true;
-    postMesh.frustumCulled = capMesh.frustumCulled = false;
-    this.scene.add(postMesh, capMesh);
 
     // start gantry and grandstand, built in the track's local frame (+x along the road, +z to its right)
     const frame = new THREE.Group();
@@ -706,6 +659,7 @@ export class Renderer {
     const c = sim.car;
     this.yaw = c.a;
     this.spin = 0;
+    this.shakeT = 0;
     this.skidHead = 0;
     this.skidCount = 0;
     this.skidGeo.setDrawRange(0, 0);
@@ -768,7 +722,8 @@ export class Renderer {
       const ys = Math.sin(this.yaw);
       const dist = 122 + 42 * sf;
       const h = 46 + 12 * sf;
-      const shake = c.boostT > 0 ? 1.4 : 0;
+      const shake = (c.boostT > 0 ? 1.4 : 0) + this.shakeT * 16;
+      this.shakeT = Math.max(0, this.shakeT - dt * 2.5);
       cam.position.set(c.x - yc * dist + (Math.random() - 0.5) * shake, h + (Math.random() - 0.5) * shake, c.y - ys * dist + (Math.random() - 0.5) * shake);
       cam.lookAt(c.x + yc * 80, 15, c.y + ys * 80);
       this.setFov(60 + 15 * Math.min(1, sf) + (c.boostT > 0 ? 8 : 0), dt);
@@ -820,6 +775,11 @@ export class Renderer {
     // ---- wheels roll with the car ----
     const fwdSpeed = c.vx * cos + c.vy * sin;
     this.spin -= (fwdSpeed * dt) / 7;
+  }
+
+  /** Camera jolt, 0 to 1, for crashes. */
+  kick(amount) {
+    this.shakeT = Math.max(this.shakeT, amount);
   }
 
   setFov(target, dt) {

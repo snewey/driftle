@@ -1,4 +1,5 @@
 import { hashString, mulberry32 } from './rng.js';
+import { generateScenery } from './scenery.js';
 
 export const TRACK_WIDTH = 160;
 export const SPACING = 20;
@@ -80,6 +81,12 @@ function wrapAngle(a) {
  * can never cross itself. It is smoothed until every corner is wide enough to drive.
  */
 export function generateTrack(dayKey) {
+  const track = buildTrack(dayKey);
+  track.scenery = generateScenery(track);
+  return track;
+}
+
+function buildTrack(dayKey) {
   const rng = mulberry32(hashString('driftle:' + dayKey));
   const dir = rng() < 0.5 ? 1 : -1;
   const rx = 1750 + rng() * 300;

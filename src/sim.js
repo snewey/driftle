@@ -15,11 +15,11 @@ export const PHYS = {
   reverseMax: 220,
   drag: 0.12,
   coast: 150,
-  steerRate: 2.7,
-  steerResponse: 9,
+  steerRate: 2.25,
+  steerResponse: 6.5,
   steerFullSpeed: 160,
-  highSpeedSteerLoss: 0.3,
-  driftYawBonus: 1.35,
+  highSpeedSteerLoss: 0.4,
+  driftYawBonus: 1.8,
   handbrakeYaw: 1.2,
   handbrakeDrag: 0.45,
   overSlip: 0.8,
@@ -43,6 +43,13 @@ export const PHYS = {
   kerb: 8,
 };
 
+import { cellKey } from './scenery.js';
+
+// Collisions: the car is three circles along its length, trees and buildings are circles.
+const CAR_OFFSETS = [-15, 0, 15];
+const CAR_RADIUS = 14.5;
+const BOUNCE = 0.05; // almost no rebound, so a head-on hit stops you dead
+const SCRAPE = 0.985; // speed kept per tick while rubbing along something
 const SEARCH = 40; // points searched either side of the last known position
 
 /** Nearest point on the centreline, searched near `hint` only so the car can never "jump" across the infield. */
@@ -105,6 +112,8 @@ export class Sim {
     this.finished = false;
     this.finishTime = null;
     this.respawns = 0;
+    this.crashes = 0;
+    this.crashCool = 0;
     this.wrongWayT = 0;
     this.events = [];
     this.samples = [];
@@ -124,6 +133,69 @@ export class Sim {
       Math.round(a * ANG_SCALE),
       Math.round(this.progMax * POS_SCALE),
     );
+  }
+
+  /** Pushes the car out of trees and buildings and kills the speed going into them. */
+  collide(c) {
+    const sc = this.track.scenery;
+    if (!sc) return;
+    if (this.crashCool > 0) this.crashCool--;
+    const cos = Math.cos(c.a);
+    const sin = Math.sin(c.a);
+    const S = sc.solids;
+    let impact = 0;
+    let touched = false;
+    for (const off of CAR_OFFSETS) {
+      let px = c.x + cos * off;
+      let py = c.y + sin * off;
+      const cx = Math.floor(px / sc.cell);
+      const cy = Math.floor(py / sc.cell);
+      for (let gx = cx - 1; gx <= cx + 1; gx++) {
+        for (let gy = cy - 1; gy <= cy + 1; gy++) {
+          const list = sc.grid.get(cellKey(gx, gy));
+          if (!list) continue;
+          for (let q = 0; q < list.length; q++) {
+            const i = list[q];
+            const dx = px - S.x[i];
+            const dy = py - S.y[i];
+            const rr = S.r[i] + CAR_RADIUS;
+            const d2 = dx * dx + dy * dy;
+            if (d2 >= rr * rr) continue;
+            const d = Math.sqrt(d2) || 0.001;
+            const nx = dx / d;
+            const ny = dy / d;
+            const pen = rr - d;
+            c.x += nx * pen;
+            c.y += ny * pen;
+            px += nx * pen;
+            py += ny * pen;
+            const vn = c.vx * nx + c.vy * ny;
+            if (vn < 0) {
+              c.vx -= (1 + BOUNCE) * vn * nx;
+              c.vy -= (1 + BOUNCE) * vn * ny;
+              if (-vn > impact) impact = -vn;
+            }
+            touched = true;
+          }
+        }
+      }
+    }
+    if (!touched) return;
+    c.vx *= SCRAPE;
+    c.vy *= SCRAPE;
+    if (impact > 40) {
+      c.boostT = 0;
+      c.charge = 0;
+    }
+    if (impact > 120) {
+      c.drifting = false;
+      c.steer *= 0.5;
+    }
+    if (impact > 60 && this.crashCool === 0) {
+      this.crashes++;
+      this.crashCool = 30;
+      this.events.push({ type: 'crash', impact });
+    }
   }
 
   step(inp) {
@@ -237,6 +309,7 @@ export class Sim {
     c.vy = vf * sin + vl * cos;
     c.x += c.vx * DT;
     c.y += c.vy * DT;
+    this.collide(c);
 
     // ---- where are we on the track? ------------------------------------
     const loc = locate(t, c.x, c.y, this.idx);
