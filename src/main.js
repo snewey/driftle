@@ -6,6 +6,7 @@ import { Renderer } from './render3d.js';
 import { makeMinimap, drawMinimap } from './minimap.js';
 import { GameAudio } from './audio.js';
 import { LocalBackend, getSavedName, saveName } from './backend.js';
+import { onlineAvailable, OnlineBackend, currentUser, onAuthChange, ensureProfile, signIn, signUp, signOut } from './online.js';
 
 const LAPS = 3;
 const $ = (id) => document.getElementById(id);
@@ -13,7 +14,9 @@ const $ = (id) => document.getElementById(id);
 // ---- setup ---------------------------------------------------------------
 const dayKey = dayKeyUTC();
 const track = generateTrack(dayKey);
-const backend = new LocalBackend();
+const localBackend = new LocalBackend();
+let backend = localBackend;
+let account = null; // { user, name } when signed in
 const audio = new GameAudio();
 const renderer = new Renderer($('game'), track);
 const miniMap = makeMinimap(track, 220, 160);
@@ -78,8 +81,15 @@ function tickResetTimer() {
 }
 
 async function refreshMenuData() {
-  pb = await backend.getPersonalBest(dayKey);
-  const board = await backend.getLeaderboard(dayKey);
+  let board = [];
+  try {
+    pb = await backend.getPersonalBest(dayKey);
+    board = await backend.getLeaderboard(dayKey);
+  } catch (err) {
+    console.error('Could not load online data, using offline data', err);
+    pb = await localBackend.getPersonalBest(dayKey);
+    board = await localBackend.getLeaderboard(dayKey);
+  }
 
   const sel = $('ghost-select');
   const prev = sel.value;
@@ -87,6 +97,9 @@ async function refreshMenuData() {
   const none = new Option('No ghost', 'none');
   sel.add(none);
   if (pb) sel.add(new Option(`My best today (${fmt(pb.timeMs)})`, 'pb'));
+  for (const r of board) {
+    if (backend.kind === 'online' && !r.isYou && r.hasGhost) sel.add(new Option(`${r.name} (${fmt(r.timeMs)})`, 'lb:' + r.runId));
+  }
   // Default to racing your own best, unless the player has deliberately picked something else.
   const prevStillValid = prev && [...sel.options].some((o) => o.value === prev);
   sel.value = ghostPicked && prevStillValid ? prev : pb ? 'pb' : 'none';
@@ -99,10 +112,12 @@ async function refreshMenuData() {
     li.textContent = 'No runs yet today. Be the first.';
     list.appendChild(li);
   }
+  $('lb-note').textContent = backend.kind === 'online' ? 'Worldwide daily leaderboard. Resets with the track.' : 'Offline leaderboard (this browser only). Sign in for the worldwide board.';
   board.forEach((r) => {
     const li = document.createElement('li');
+    if (r.isYou && backend.kind === 'online') li.className = 'you';
     const name = document.createElement('span');
-    name.textContent = r.name;
+    name.textContent = backend.kind === 'online' ? `${r.rank}. ${r.name}` : r.name;
     const time = document.createElement('b');
     time.textContent = fmt(r.timeMs);
     li.append(name, time);
@@ -123,7 +138,10 @@ function setBanner(text, ms = 0) {
   bannerUntil = ms ? performance.now() + ms : 0;
 }
 
-function startRace() {
+let starting = false;
+async function startRace() {
+  if (starting) return;
+  starting = true;
   audio.unlock();
   lastCount = 0;
   saveName(cleanName($('name-input').value));
@@ -131,9 +149,18 @@ function startRace() {
   sim = new Sim(track, LAPS);
   renderer.reset(sim);
   ghost = null;
-  if ($('ghost-select').value === 'pb' && pb) {
-    ghost = new GhostPlayer(unpackSamples(pb.ghost), pb.timeMs / 1000);
+  const pick = $('ghost-select').value;
+  try {
+    if (pick === 'pb' && pb) {
+      ghost = new GhostPlayer(unpackSamples(pb.ghost), pb.timeMs / 1000);
+    } else if (pick.startsWith('lb:')) {
+      const g = await backend.getGhost(dayKey, pick.slice(3));
+      if (g) ghost = new GhostPlayer(unpackSamples(g.ghost), g.timeMs / 1000);
+    }
+  } catch (err) {
+    console.error('Could not load ghost', err);
   }
+  starting = false;
   acc = 0;
   countdown = 3;
   state = 'countdown';
@@ -185,7 +212,8 @@ async function onFinish() {
   const wait = new Promise((r) => setTimeout(r, 900));
   let res = null;
   try {
-    res = await backend.submitRun({ day: dayKey, name: getSavedName(), timeMs, ghost: ghostData });
+    res = await backend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData });
+    if (backend.kind === 'online') await localBackend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData });
   } catch (err) {
     console.error('Could not save run', err);
   }
@@ -196,7 +224,10 @@ async function onFinish() {
   $('finish-time').textContent = fmt(timeMs);
   const sub = $('finish-sub');
   sub.className = 'sub';
-  if (prevBest == null) {
+  if (backend.kind === 'online' && res && res.isPB === false && prevBest != null) {
+    sub.textContent = `+${((timeMs - prevBest) / 1000).toFixed(3)}s off your best`;
+    sub.classList.add('bad');
+  } else if (prevBest == null) {
     sub.textContent = 'First run of the day';
     sub.classList.add('good');
   } else if (timeMs < prevBest) {
@@ -213,7 +244,7 @@ async function onFinish() {
     li.textContent = `Lap ${i + 1}   ${fmt(l)}`;
     ul.appendChild(li);
   });
-  $('finish-rank').textContent = res && res.rank ? `Rank #${res.rank} in your runs today` : '';
+  $('finish-rank').textContent = res && res.rank ? (backend.kind === 'online' ? `Rank #${res.rank} worldwide today` : `Rank #${res.rank} in your runs today`) : backend.kind === 'online' ? 'Could not reach the leaderboard. Check your connection.' : '';
   setBanner('');
   show('finish', true);
 }
@@ -343,3 +374,100 @@ $('menu-btn').addEventListener('click', toMenu);
 
 setupMenu();
 requestAnimationFrame(frame);
+
+// ---- accounts ------------------------------------------------------------
+let authMode = 'in';
+function setAccount(user, name) {
+  account = user ? { user, name } : null;
+  backend = account ? new OnlineBackend(user, name) : localBackend;
+  const ni = $('name-input');
+  if (account) {
+    ni.value = name;
+    ni.disabled = true;
+    $('account-text').textContent = `Signed in as ${name}`;
+    $('account-btn').textContent = 'SIGN OUT';
+  } else {
+    ni.disabled = false;
+    ni.value = getSavedName();
+    $('account-text').textContent = 'Offline: times stay in this browser';
+    $('account-btn').textContent = 'SIGN IN';
+  }
+  ghostPicked = false;
+  refreshMenuData();
+}
+function setAuthMode(mode) {
+  authMode = mode;
+  const up = mode === 'up';
+  $('auth-title').textContent = up ? 'Create account' : 'Sign in';
+  $('auth-go').textContent = up ? 'SIGN UP' : 'SIGN IN';
+  $('auth-switch').textContent = up ? 'Have an account? Sign in' : 'No account? Sign up';
+  $('auth-name').classList.toggle('hidden', !up);
+  $('auth-name-label').classList.toggle('hidden', !up);
+  $('auth-pass').autocomplete = up ? 'new-password' : 'current-password';
+  authMsg('');
+}
+function authMsg(t, ok = false) {
+  $('auth-msg').textContent = t;
+  $('auth-msg').classList.toggle('ok', ok);
+}
+async function doAuth() {
+  const email = $('auth-email').value.trim();
+  const pass = $('auth-pass').value;
+  if (!email || !pass) return authMsg('Enter your email and password.');
+  $('auth-go').disabled = true;
+  authMsg('Working...', true);
+  try {
+    if (authMode === 'up') {
+      const r = await signUp(email, pass, $('auth-name').value.trim());
+      if (r.error) return authMsg(r.error);
+      if (r.confirm) return authMsg('Check your email and click the confirm link, then sign in here.', true);
+      authMsg('');
+      $('auth').classList.add('hidden');
+    } else {
+      const r = await signIn(email, pass);
+      if (r.error) return authMsg(r.error);
+      authMsg('');
+      $('auth').classList.add('hidden');
+    }
+  } finally {
+    $('auth-go').disabled = false;
+  }
+}
+if (onlineAvailable) {
+  $('account').classList.remove('hidden');
+  $('account-btn').addEventListener('click', async () => {
+    if (account) await signOut();
+    else {
+      setAuthMode('in');
+      $('auth').classList.remove('hidden');
+      $('auth-email').focus();
+    }
+  });
+  $('auth-switch').addEventListener('click', () => setAuthMode(authMode === 'in' ? 'up' : 'in'));
+  $('auth-close').addEventListener('click', () => $('auth').classList.add('hidden'));
+  $('auth-go').addEventListener('click', doAuth);
+  $('auth').addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.code === 'Enter') doAuth();
+  });
+  setAuthMode('in');
+  setAccount(null);
+  currentUser().then(async (u) => {
+    if (u) {
+      try {
+        setAccount(u, await ensureProfile(u));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  });
+  onAuthChange(async (u) => {
+    if (u && !(account && account.user.id === u.id)) {
+      try {
+        setAccount(u, await ensureProfile(u));
+      } catch (e) {
+        console.error(e);
+      }
+    } else if (!u && account) setAccount(null);
+  });
+}

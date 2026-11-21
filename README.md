@@ -90,3 +90,8 @@ only with Row Level Security turned on. The service role key must never be in th
 - Roadside marker posts removed; trees now start just past the kerb.
 - Trees, the start gantry posts and the grandstand are solid: hitting them stops the car (shared scenery list in `src/scenery.js`, collision in `src/sim.js`).
 - Synthesised sound (`src/audio.js`, no audio files): engine with gears, tyre skid, grass rumble, countdown beeps, GO, lap ding, drift boost, crash, finish fanfare. Press `M` or click the SOUND chip to mute. Sound starts after the first click or key press (browser rule).
+
+## v0.4 online (Supabase)
+- Database in `supabase/migrations/0001_init.sql`: `profiles`, `daily_bests` (one best run + ghost per player per day), `submit_run()` and `get_leaderboard()`. Row Level Security is on; players can only write through `submit_run`, which checks the day and the time.
+- Sign in / sign up from the menu to join the worldwide daily board and race other players' ghosts. Signed out, the game stays offline (localStorage).
+- Setup: copy `.env.example` to `.env.local` and fill in the project URL and publishable key. Times are reported by the browser, so a determined cheater could fake one; a server-side replay check is a later step.

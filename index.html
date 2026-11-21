@@ -27,6 +27,23 @@
         <div id="banner"></div>
       </div>
 
+      <section id="auth" class="panel hidden">
+        <h2 id="auth-title">Sign in</h2>
+        <p class="muted tiny">An account puts your times on the worldwide daily leaderboard and lets others race your ghost.</p>
+        <label class="label" for="auth-name" id="auth-name-label">DRIVER NAME</label>
+        <input id="auth-name" maxlength="16" autocomplete="nickname" spellcheck="false" />
+        <label class="label" for="auth-email">EMAIL</label>
+        <input id="auth-email" type="email" autocomplete="email" spellcheck="false" />
+        <label class="label" for="auth-pass">PASSWORD</label>
+        <input id="auth-pass" type="password" autocomplete="current-password" />
+        <div id="auth-msg" class="tiny"></div>
+        <button id="auth-go" class="btn primary" type="button">SIGN IN</button>
+        <div class="auth-links">
+          <button id="auth-switch" class="chip-inline" type="button">No account? Sign up</button>
+          <button id="auth-close" class="chip-inline" type="button">Cancel</button>
+        </div>
+      </section>
+
       <section id="menu" class="panel">
         <header>
           <h1>DRIFT<span>LE</span></h1>
@@ -38,6 +55,11 @@
             <div id="track-name" class="big">...</div>
             <div id="day-label" class="muted"></div>
             <div class="muted">New track in <b id="reset-timer">--:--:--</b></div>
+
+            <div id="account" class="account hidden">
+              <span id="account-text" class="muted tiny"></span>
+              <button id="account-btn" class="chip-inline" type="button">SIGN IN</button>
+            </div>
 
             <label class="label" for="name-input">DRIVER NAME</label>
             <input id="name-input" maxlength="16" autocomplete="off" spellcheck="false" />
