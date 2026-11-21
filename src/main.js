@@ -2,7 +2,8 @@ import './style.css';
 import { dayKeyUTC, msUntilReset, generateTrack } from './track.js';
 import { Sim, DT, PHYS } from './sim.js';
 import { GhostPlayer, packSamples, unpackSamples } from './ghost.js';
-import { Renderer, makeMinimap, drawMinimap } from './render.js';
+import { Renderer } from './render3d.js';
+import { makeMinimap, drawMinimap } from './minimap.js';
 import { LocalBackend, getSavedName, saveName } from './backend.js';
 
 const LAPS = 3;
@@ -56,6 +57,7 @@ function setupMenu() {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
   });
   $('name-input').value = getSavedName();
+  $('day-label').textContent += ' · ' + renderer.themeName;
   const pv = $('preview');
   pv.getContext('2d').drawImage(previewMap.base, 0, 0);
   refreshMenuData();
@@ -251,6 +253,7 @@ function frame(now) {
   if (bannerUntil && now > bannerUntil) setBanner('');
 
   const ghostPose = ghost ? ghost.at(sim.time) : null;
+  renderer.orbit = state === 'menu';
   renderer.update(real, sim);
   renderer.draw(sim, ghostPose);
   if (state !== 'menu') updateHud(ghostPose);

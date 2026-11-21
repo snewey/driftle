@@ -4,7 +4,7 @@ A daily drift racing time trial for the browser. Everyone gets the same track ea
 chases the best 3-lap time, and can race a ghost of their own best run. The track and the
 leaderboard reset at 00:00 UTC.
 
-Status: **v0.1 - playable offline.** Online accounts, the global daily leaderboard and shared
+Status: **v0.2 - playable offline, now in 3D** (third-person chase camera, textured road, trees, sky). Online accounts, the global daily leaderboard and shared
 ghosts come next (Supabase), then publishing (Vercel).
 
 ## Run it
@@ -42,6 +42,12 @@ Cornering without drifting scrubs speed, and the grass slows you down a lot.
   code in it, so it can also be replayed on a server later to check leaderboard times.
 - **Ghosts:** `src/ghost.js` stores a run as a compact list of positions (about 20 KB for a
   one minute run) and replays it with a live time gap on the HUD.
+- **3D view:** `src/render3d.js` draws the sim with Three.js. The sim stays flat 2D (x, y,
+  heading) and is mapped onto the ground plane, so physics, ghosts and timing are untouched.
+  Textures (asphalt, grass, kerbs, bark, leaves, tyres, sky) are drawn procedurally at start-up, so
+  there are no image files to download. Trees are instanced (about 2,600 in a few draw calls).
+  Each day also picks one of five looks (clear day, golden hour, overcast, autumn, dusk).
+  Trees and the grandstand are decoration only: there is no collision with them yet.
 - **Storage:** `src/backend.js` keeps runs in the browser for now. The game only talks to
   the methods on that object, so a Supabase version can replace it without touching the game.
 
@@ -57,7 +63,8 @@ src/
   main.js      game loop, menu, HUD, finish screen
   sim.js       driving physics and lap logic
   track.js     daily track generator
-  render.js    canvas drawing and minimap
+  render3d.js  3D scene, chase camera, car, trees, effects (Three.js)
+  minimap.js   2D track outline for the HUD and menu
   ghost.js     ghost recording and replay
   backend.js   saved runs (local now, Supabase later)
   rng.js       seeded random numbers
@@ -75,4 +82,4 @@ only with Row Level Security turned on. The service role key must never be in th
 1. Playable offline game (done)
 2. Supabase: accounts, global daily leaderboard, personal bests, shared ghosts
 3. Publish on Vercel (free Hobby plan)
-4. Polish: sound, more cars, mobile controls
+4. Polish: sound, more cars, tree/barrier collision, mobile controls
