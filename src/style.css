@@ -95,7 +95,7 @@ input:focus, select:focus { border-color: var(--accent2); }
 
 #preview { width: 100%; max-width: 360px; align-self: center; border-radius: 10px; background: #0a0e15; border: 1px solid var(--line); }
 
-#leaderboard { margin: 4px 0 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow: auto; }
+#leaderboard { margin: 4px 0 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; max-height: 210px; overflow: auto; }
 #leaderboard li { padding-left: 4px; }
 #leaderboard li span { margin-right: 10px; color: var(--muted); }
 #leaderboard li b { color: var(--text); font-variant-numeric: tabular-nums; }

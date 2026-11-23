@@ -87,6 +87,7 @@ export class OnlineBackend {
   }
 
   async getPersonalBest(day) {
+    if (!this.user) return null;
     const { data } = await supabase
       .from('daily_bests')
       .select('time_ms, ghost')
@@ -97,7 +98,7 @@ export class OnlineBackend {
   }
 
   async getLeaderboard(day) {
-    const { data, error } = await supabase.rpc('get_leaderboard', { p_day: day, p_limit: 10 });
+    const { data, error } = await supabase.rpc('get_leaderboard', { p_day: day, p_limit: 25 });
     if (error) throw error;
     return (data || []).map((r) => ({
       runId: r.user_id,
@@ -105,7 +106,7 @@ export class OnlineBackend {
       timeMs: r.time_ms,
       rank: Number(r.rank),
       hasGhost: true,
-      isYou: r.user_id === this.user.id,
+      isYou: !!this.user && r.user_id === this.user.id,
     }));
   }
 

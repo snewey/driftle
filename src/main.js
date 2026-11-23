@@ -16,6 +16,9 @@ const dayKey = dayKeyUTC();
 const track = generateTrack(dayKey);
 const localBackend = new LocalBackend();
 let backend = localBackend;
+const publicReader = onlineAvailable ? new OnlineBackend(null, null) : localBackend; // read-only: anyone can see the board
+let boardKind = 'local';
+const reader = () => (account ? backend : publicReader);
 let account = null; // { user, name } when signed in
 const audio = new GameAudio();
 const renderer = new Renderer($('game'), track);
@@ -84,11 +87,18 @@ async function refreshMenuData() {
   let board = [];
   try {
     pb = await backend.getPersonalBest(dayKey);
-    board = await backend.getLeaderboard(dayKey);
   } catch (err) {
-    console.error('Could not load online data, using offline data', err);
+    console.error('Could not load your best, using offline data', err);
     pb = await localBackend.getPersonalBest(dayKey);
+  }
+  try {
+    const r = reader();
+    board = await r.getLeaderboard(dayKey);
+    boardKind = r.kind;
+  } catch (err) {
+    console.error('Could not load the worldwide board, using offline data', err);
     board = await localBackend.getLeaderboard(dayKey);
+    boardKind = 'local';
   }
 
   const sel = $('ghost-select');
@@ -98,7 +108,7 @@ async function refreshMenuData() {
   sel.add(none);
   if (pb) sel.add(new Option(`My best today (${fmt(pb.timeMs)})`, 'pb'));
   for (const r of board) {
-    if (backend.kind === 'online' && !r.isYou && r.hasGhost) sel.add(new Option(`${r.name} (${fmt(r.timeMs)})`, 'lb:' + r.runId));
+    if (boardKind === 'online' && !r.isYou && r.hasGhost) sel.add(new Option(`${r.name} (${fmt(r.timeMs)})`, 'lb:' + r.runId));
   }
   // Default to racing your own best, unless the player has deliberately picked something else.
   const prevStillValid = prev && [...sel.options].some((o) => o.value === prev);
@@ -112,12 +122,16 @@ async function refreshMenuData() {
     li.textContent = 'No runs yet today. Be the first.';
     list.appendChild(li);
   }
-  $('lb-note').textContent = backend.kind === 'online' ? 'Worldwide daily leaderboard. Resets with the track.' : 'Offline leaderboard (this browser only). Sign in for the worldwide board.';
+  $('lb-title').textContent = boardKind === 'online' ? "TODAY'S WORLDWIDE LEADERBOARD" : 'YOUR BEST TIMES TODAY';
+  $('lb-note').textContent =
+    boardKind === 'online'
+      ? account ? 'One best time per driver. Resets with the track.' : 'One best time per driver. Sign in to post your own time.'
+      : 'Offline leaderboard (this browser only).';
   board.forEach((r) => {
     const li = document.createElement('li');
-    if (r.isYou && backend.kind === 'online') li.className = 'you';
+    if (r.isYou && boardKind === 'online') li.className = 'you';
     const name = document.createElement('span');
-    name.textContent = backend.kind === 'online' ? `${r.rank}. ${r.name}` : r.name;
+    name.textContent = boardKind === 'online' ? `${r.rank}. ${r.name}` : r.name;
     const time = document.createElement('b');
     time.textContent = fmt(r.timeMs);
     li.append(name, time);
@@ -154,7 +168,7 @@ async function startRace() {
     if (pick === 'pb' && pb) {
       ghost = new GhostPlayer(unpackSamples(pb.ghost), pb.timeMs / 1000);
     } else if (pick.startsWith('lb:')) {
-      const g = await backend.getGhost(dayKey, pick.slice(3));
+      const g = await reader().getGhost(dayKey, pick.slice(3));
       if (g) ghost = new GhostPlayer(unpackSamples(g.ghost), g.timeMs / 1000);
     }
   } catch (err) {
@@ -244,7 +258,7 @@ async function onFinish() {
     li.textContent = `Lap ${i + 1}   ${fmt(l)}`;
     ul.appendChild(li);
   });
-  $('finish-rank').textContent = res && res.rank ? (backend.kind === 'online' ? `Rank #${res.rank} worldwide today` : `Rank #${res.rank} in your runs today`) : backend.kind === 'online' ? 'Could not reach the leaderboard. Check your connection.' : '';
+  $('finish-rank').textContent = res && res.rank ? (backend.kind === 'online' ? `Rank #${res.rank} worldwide today` : `Rank #${res.rank} in your runs today`) : backend.kind === 'online' ? 'Could not reach the leaderboard. Check your connection.' : onlineAvailable ? 'Sign in to post this time to the worldwide leaderboard.' : '';
   setBanner('');
   show('finish', true);
 }
