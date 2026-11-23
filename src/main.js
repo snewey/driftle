@@ -136,11 +136,11 @@ async function refreshMenuData() {
     boardKind === 'online'
       ? account ? 'One best time per driver. Resets with the track.' : 'One best time per driver. Create a free account (left) to post your own time.'
       : 'Offline leaderboard (this browser only).';
-  board.forEach((r) => {
+  board.forEach((r, idx) => {
     const li = document.createElement('li');
     if (r.isYou && boardKind === 'online') li.className = 'you';
     const name = document.createElement('span');
-    const label = boardKind === 'online' ? `${r.rank}. ${r.name}` : r.name;
+    const label = `${boardKind === 'online' ? r.rank : idx + 1}. ${r.name}`;
     if (r.hasGhost) {
       const btn = document.createElement('button');
       btn.type = 'button';
