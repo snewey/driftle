@@ -163,3 +163,8 @@ kbd { background: #1a2231; border: 1px solid var(--line); border-bottom-width: 2
 #auth-msg.ok { color:var(--good); }
 .auth-links { display:flex; justify-content:space-between; margin-top:8px; }
 #leaderboard li.you b, #leaderboard li.you span { color:var(--accent2); }
+
+.account { flex-direction:column; align-items:stretch; }
+.account .warn { color:#ffd479; }
+.chip-inline.primary-chip { background:var(--accent); border-color:var(--accent); color:#fff; padding:8px 10px; }
+#auth-name-hint { margin-bottom:6px; }

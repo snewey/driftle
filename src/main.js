@@ -125,7 +125,7 @@ async function refreshMenuData() {
   $('lb-title').textContent = boardKind === 'online' ? "TODAY'S WORLDWIDE LEADERBOARD" : 'YOUR BEST TIMES TODAY';
   $('lb-note').textContent =
     boardKind === 'online'
-      ? account ? 'One best time per driver. Resets with the track.' : 'One best time per driver. Sign in to post your own time.'
+      ? account ? 'One best time per driver. Resets with the track.' : 'One best time per driver. Create a free account (left) to post your own time.'
       : 'Offline leaderboard (this browser only).';
   board.forEach((r) => {
     const li = document.createElement('li');
@@ -258,7 +258,7 @@ async function onFinish() {
     li.textContent = `Lap ${i + 1}   ${fmt(l)}`;
     ul.appendChild(li);
   });
-  $('finish-rank').textContent = res && res.rank ? (backend.kind === 'online' ? `Rank #${res.rank} worldwide today` : `Rank #${res.rank} in your runs today`) : backend.kind === 'online' ? 'Could not reach the leaderboard. Check your connection.' : onlineAvailable ? 'Sign in to post this time to the worldwide leaderboard.' : '';
+  $('finish-rank').textContent = res && res.rank ? (backend.kind === 'online' ? `Rank #${res.rank} worldwide today` : `Rank #${res.rank} in your runs today`) : backend.kind === 'online' ? 'Could not reach the leaderboard. Check your connection.' : onlineAvailable ? 'This time was NOT posted. Go back to the menu and create a free account to join the worldwide leaderboard.' : '';
   setBanner('');
   show('finish', true);
 }
@@ -398,13 +398,19 @@ function setAccount(user, name) {
   if (account) {
     ni.value = name;
     ni.disabled = true;
-    $('account-text').textContent = `Signed in as ${name}`;
+    $('name-label').textContent = 'DRIVER NAME (YOURS ONLY)';
+    $('account-text').textContent = `Signed in as ${name}. Your times count on the worldwide board.`;
+    $('account-text').classList.remove('warn');
     $('account-btn').textContent = 'SIGN OUT';
+    $('account-btn').classList.remove('primary-chip');
   } else {
     ni.disabled = false;
     ni.value = getSavedName();
-    $('account-text').textContent = 'Offline: times stay in this browser';
-    $('account-btn').textContent = 'SIGN IN';
+    $('name-label').textContent = 'GUEST NAME (NOT POSTED ONLINE)';
+    $('account-text').textContent = 'Playing as a guest. Your times are NOT on the worldwide leaderboard. Create a free account to post them.';
+    $('account-text').classList.add('warn');
+    $('account-btn').textContent = 'CREATE ACCOUNT / SIGN IN';
+    $('account-btn').classList.add('primary-chip');
   }
   ghostPicked = false;
   refreshMenuData();

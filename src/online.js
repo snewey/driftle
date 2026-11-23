@@ -12,7 +12,7 @@ export const supabase = onlineAvailable
   ? createClient(URL, KEY, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
 
-const NAME_OK = /^[A-Za-z0-9_ -]{2,16}$/;
+const NAME_OK = /^(?=.*[A-Za-z0-9])[A-Za-z0-9_ -]{2,16}$/;
 
 function niceError(err) {
   const m = (err && err.message) || String(err);
@@ -51,8 +51,8 @@ export async function ensureProfile(user, wantedName) {
 
 export async function signUp(email, password, name) {
   if (!NAME_OK.test(name)) return { error: 'Driver name: 2-16 letters, numbers, spaces, - or _.' };
-  const { data: taken } = await supabase.from('profiles').select('id').ilike('name', name).limit(1);
-  if (taken && taken.length) return { error: 'That driver name is taken. Pick another.' };
+  const { data: free } = await supabase.rpc('name_available', { p_name: name });
+  if (free === false) return { error: 'That driver name is already taken. Pick another one.' };
   const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
   if (error) return { error: niceError(error) };
   if (!data.session) return { confirm: true }; // email confirmation is switched on

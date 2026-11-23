@@ -29,9 +29,10 @@
 
       <section id="auth" class="panel hidden">
         <h2 id="auth-title">Sign in</h2>
-        <p class="muted tiny">An account puts your times on the worldwide daily leaderboard and lets others race your ghost.</p>
+        <p class="muted tiny">You need a free account to put your times on the worldwide leaderboard. Without one you can still race, but your times stay on this computer only.</p>
         <label class="label" for="auth-name" id="auth-name-label">DRIVER NAME</label>
         <input id="auth-name" maxlength="16" autocomplete="nickname" spellcheck="false" />
+        <div id="auth-name-hint" class="muted tiny">Your driver name is unique and permanent. Once it is yours, nobody else can use it and you cannot change it.</div>
         <label class="label" for="auth-email">EMAIL</label>
         <input id="auth-email" type="email" autocomplete="email" spellcheck="false" />
         <label class="label" for="auth-pass">PASSWORD</label>
@@ -57,11 +58,11 @@
             <div class="muted">New track in <b id="reset-timer">--:--:--</b></div>
 
             <div id="account" class="account hidden">
-              <span id="account-text" class="muted tiny"></span>
+              <span id="account-text" class="tiny"></span>
               <button id="account-btn" class="chip-inline" type="button">SIGN IN</button>
             </div>
 
-            <label class="label" for="name-input">DRIVER NAME</label>
+            <label class="label" for="name-input" id="name-label">DRIVER NAME</label>
             <input id="name-input" maxlength="16" autocomplete="off" spellcheck="false" />
 
             <label class="label" for="ghost-select">RACE A GHOST</label>
