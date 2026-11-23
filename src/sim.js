@@ -117,6 +117,7 @@ export class Sim {
     this.wrongWayT = 0;
     this.events = [];
     this.samples = [];
+    this.inputRuns = []; // run-length encoded key presses: [mask, ticks, mask, ticks, ...]
     this.recordSample();
   }
 
@@ -198,11 +199,20 @@ export class Sim {
     }
   }
 
+  recordInput(inp) {
+    const mask = (inp.throttle ? 1 : 0) | (inp.brake ? 2 : 0) | (inp.left ? 4 : 0) | (inp.right ? 8 : 0) | (inp.handbrake ? 16 : 0);
+    const r = this.inputRuns;
+    const n = r.length;
+    if (n && r[n - 2] === mask && r[n - 1] < 255) r[n - 1]++;
+    else r.push(mask, 1);
+  }
+
   step(inp) {
     if (this.finished) return;
     const t = this.track;
     const c = this.car;
     const P = PHYS;
+    this.recordInput(inp);
     this.tick++;
 
     const onRoad = this.dist <= t.halfWidth + P.kerb;

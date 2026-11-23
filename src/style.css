@@ -168,3 +168,16 @@ kbd { background: #1a2231; border: 1px solid var(--line); border-bottom-width: 2
 .account .warn { color:#ffd479; }
 .chip-inline.primary-chip { background:var(--accent); border-color:var(--accent); color:#fff; padding:8px 10px; }
 #auth-name-hint { margin-bottom:6px; }
+
+#replay { position:fixed; inset:0; pointer-events:none; z-index:15; }
+#replay .rp-top { position:absolute; top:12px; left:50%; transform:translateX(-50%); display:flex; gap:18px; align-items:center; flex-wrap:wrap; justify-content:center; background:rgba(10,12,20,.75); border:1px solid var(--line); border-radius:10px; padding:8px 14px; pointer-events:auto; max-width:94vw; }
+.rp-tag { color:var(--accent); font-weight:700; letter-spacing:.12em; font-size:12px; }
+.rp-btns { display:flex; gap:6px; }
+#rp-keys { position:absolute; bottom:22px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; gap:6px; align-items:center; }
+#rp-keys .kr { display:flex; gap:6px; }
+.key { min-width:48px; height:48px; display:flex; align-items:center; justify-content:center; border:2px solid var(--line); border-radius:8px; background:rgba(10,12,20,.7); color:var(--muted); font-weight:700; font-size:16px; transition:background .05s, color .05s, transform .05s; }
+.key.space { min-width:174px; font-size:13px; letter-spacing:.2em; }
+.key.on { background:var(--accent); border-color:var(--accent); color:#fff; transform:translateY(2px); }
+#rp-nokeys { position:absolute; bottom:30px; left:50%; transform:translateX(-50%); background:rgba(10,12,20,.7); padding:6px 12px; border-radius:8px; }
+#leaderboard li .who { background:none; border:0; padding:0; margin:0 10px 0 0; font:inherit; color:var(--accent2); cursor:pointer; text-decoration:underline dotted; }
+#leaderboard li .who:hover { color:#fff; }

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateTrack, dayKeyUTC, msUntilReset, minTurnRadius, TRACK_WIDTH } from '../src/track.js';
 import { Sim, DT, PHYS } from '../src/sim.js';
-import { packSamples, unpackSamples, GhostPlayer } from '../src/ghost.js';
+import { packSamples, unpackSamples, GhostPlayer, packInputs, unpackInputs } from '../src/ghost.js';
 
 const NO_INPUT = { throttle: false, brake: false, left: false, right: false, handbrake: false };
 
@@ -235,4 +235,20 @@ test('driving into a tree stops the car and it cannot pass through', () => {
   assert.ok(crashed, 'no crash event');
   assert.ok(closest > 13, `the car went inside the tree (${closest.toFixed(1)})`);
   assert.ok(Math.hypot(c.vx, c.vy) < 150, `still doing ${Math.hypot(c.vx, c.vy).toFixed(0)} after hitting a tree head on`);
+});
+
+test('recorded key presses are small, and replaying them gives the same run', () => {
+  const track = generateTrack('2026-11-20');
+  const a = runAutopilot(track);
+  const packed = packInputs(a.inputRuns);
+  const masks = unpackInputs(packed);
+  assert.equal(masks.length, a.tick, 'one key mask per tick');
+  assert.ok(packed.length < 6000, `inputs took ${packed.length} bytes`);
+  const b = new Sim(track, 3);
+  for (let i = 0; i < masks.length; i++) {
+    const m = masks[i];
+    b.step({ throttle: !!(m & 1), brake: !!(m & 2), left: !!(m & 4), right: !!(m & 8), handbrake: !!(m & 16) });
+  }
+  assert.equal(b.finishTime, a.finishTime);
+  console.log(`      inputs: ${packed.length} bytes for ${a.finishTime.toFixed(1)}s`);
 });

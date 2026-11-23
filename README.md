@@ -95,3 +95,8 @@ only with Row Level Security turned on. The service role key must never be in th
 - Database in `supabase/migrations/0001_init.sql`: `profiles`, `daily_bests` (one best run + ghost per player per day), `submit_run()` and `get_leaderboard()`. Row Level Security is on; players can only write through `submit_run`, which checks the day and the time.
 - Sign in / sign up from the menu to join the worldwide daily board and race other players' ghosts. Signed out, the game stays offline (localStorage).
 - Setup: copy `.env.example` to `.env.local` and fill in the project URL and publishable key. Times are reported by the browser, so a determined cheater could fake one; a server-side replay check is a later step.
+
+## v0.5 replays
+- Click any driver's name on the leaderboard to watch their best run, with the keys they pressed (W A S D and Space) lit up on screen. Controls: Pause (P), Speed (1x / 0.5x / 0.25x), Restart (R), Back (Esc).
+- Each best run stores its key presses (`daily_bests.inputs`, run-length encoded, about 1-4 KB). Runs set before this update have no key data, so they replay without the keys.
+- The same input record can later be re-simulated on a server to verify times (anti-cheat).

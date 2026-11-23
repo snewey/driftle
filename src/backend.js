@@ -75,12 +75,12 @@ export class LocalBackend {
       .map((r) => ({ runId: r.id, name: r.name, timeMs: r.timeMs, hasGhost: !!r.hasGhost, isYou: true }));
   }
 
-  async submitRun({ day, name, timeMs, ghost }) {
+  async submitRun({ day, name, timeMs, ghost, inputs }) {
     const d = read('day:' + day, { runs: [], pb: null });
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const isPB = !d.pb || timeMs < d.pb.timeMs;
     if (isPB) {
-      d.pb = { timeMs, ghost, runId: id };
+      d.pb = { timeMs, ghost, inputs, runId: id };
       d.runs.forEach((r) => {
         r.hasGhost = false;
       });

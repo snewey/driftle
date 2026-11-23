@@ -90,11 +90,11 @@ export class OnlineBackend {
     if (!this.user) return null;
     const { data } = await supabase
       .from('daily_bests')
-      .select('time_ms, ghost')
+      .select('time_ms, ghost, inputs')
       .eq('user_id', this.user.id)
       .eq('day', day)
       .maybeSingle();
-    return data ? { timeMs: data.time_ms, ghost: data.ghost, runId: this.user.id } : null;
+    return data ? { timeMs: data.time_ms, ghost: data.ghost, inputs: data.inputs, runId: this.user.id } : null;
   }
 
   async getLeaderboard(day) {
@@ -110,19 +110,20 @@ export class OnlineBackend {
     }));
   }
 
-  async submitRun({ day, timeMs, laps, ghost }) {
+  async submitRun({ day, timeMs, laps, ghost, inputs }) {
     const { data, error } = await supabase.rpc('submit_run', {
       p_day: day,
       p_time_ms: timeMs,
       p_laps: laps.map((l) => Math.round(l)),
       p_ghost: ghost,
+      p_inputs: inputs || '',
     });
     if (error) throw error;
     return { rank: data.rank, isPB: data.improved, runId: this.user.id };
   }
 
   async getGhost(day, userId) {
-    const { data } = await supabase.from('daily_bests').select('time_ms, ghost').eq('user_id', userId).eq('day', day).maybeSingle();
-    return data ? { timeMs: data.time_ms, ghost: data.ghost, runId: userId } : null;
+    const { data } = await supabase.from('daily_bests').select('time_ms, ghost, inputs').eq('user_id', userId).eq('day', day).maybeSingle();
+    return data ? { timeMs: data.time_ms, ghost: data.ghost, inputs: data.inputs, runId: userId } : null;
   }
 }

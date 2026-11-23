@@ -22,6 +22,30 @@ export function unpackSamples(b64) {
   return new Int16Array(bytes.buffer);
 }
 
+/** Key presses: bit 1 gas, 2 brake, 4 left, 8 right, 16 handbrake. Stored as [mask, ticks] byte pairs. */
+export function packInputs(runs) {
+  let bin = '';
+  for (let i = 0; i < runs.length; i += 0x8000) bin += String.fromCharCode.apply(null, runs.slice(i, i + 0x8000));
+  return btoa(bin);
+}
+
+/** One key mask per sim tick (1/120 s each). */
+export function unpackInputs(b64) {
+  if (!b64) return null;
+  const bin = atob(b64);
+  let total = 0;
+  for (let i = 1; i < bin.length; i += 2) total += bin.charCodeAt(i);
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (let i = 0; i + 1 < bin.length; i += 2) {
+    const m = bin.charCodeAt(i);
+    const n = bin.charCodeAt(i + 1);
+    out.fill(m, o, o + n);
+    o += n;
+  }
+  return out;
+}
+
 const STEP = SAMPLE_STRIDE * DT; // seconds between samples
 
 export class GhostPlayer {

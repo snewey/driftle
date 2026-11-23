@@ -1,7 +1,7 @@
 import './style.css';
 import { dayKeyUTC, msUntilReset, generateTrack } from './track.js';
 import { Sim, DT, PHYS } from './sim.js';
-import { GhostPlayer, packSamples, unpackSamples } from './ghost.js';
+import { GhostPlayer, packSamples, unpackSamples, packInputs, unpackInputs } from './ghost.js';
 import { Renderer } from './render3d.js';
 import { makeMinimap, drawMinimap } from './minimap.js';
 import { GameAudio } from './audio.js';
@@ -131,7 +131,16 @@ async function refreshMenuData() {
     const li = document.createElement('li');
     if (r.isYou && boardKind === 'online') li.className = 'you';
     const name = document.createElement('span');
-    name.textContent = boardKind === 'online' ? `${r.rank}. ${r.name}` : r.name;
+    const label = boardKind === 'online' ? `${r.rank}. ${r.name}` : r.name;
+    if (r.hasGhost) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'who';
+      btn.textContent = label;
+      btn.title = 'Watch this run';
+      btn.addEventListener('click', () => watchReplay(r));
+      name.appendChild(btn);
+    } else name.textContent = label;
     const time = document.createElement('b');
     time.textContent = fmt(r.timeMs);
     li.append(name, time);
@@ -155,6 +164,8 @@ function setBanner(text, ms = 0) {
 let starting = false;
 async function startRace() {
   if (starting) return;
+  rp = null;
+  show('replay', false);
   starting = true;
   audio.unlock();
   lastCount = 0;
@@ -186,6 +197,8 @@ async function startRace() {
 
 function toMenu() {
   state = 'menu';
+  rp = null;
+  show('replay', false);
   sim = new Sim(track, LAPS);
   renderer.reset(sim);
   ghost = null;
@@ -223,11 +236,12 @@ async function onFinish() {
   const prevBest = pb ? pb.timeMs : null;
   const laps = sim.lapTimes.map((t, i) => (t - (i ? sim.lapTimes[i - 1] : 0)) * 1000);
   const ghostData = packSamples(sim.samples);
+  const inputsData = packInputs(sim.inputRuns);
   const wait = new Promise((r) => setTimeout(r, 900));
   let res = null;
   try {
-    res = await backend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData });
-    if (backend.kind === 'online') await localBackend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData });
+    res = await backend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData, inputs: inputsData });
+    if (backend.kind === 'online') await localBackend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData, inputs: inputsData });
   } catch (err) {
     console.error('Could not save run', err);
   }
@@ -291,6 +305,12 @@ function updateHud(ghostPose) {
 function frame(now) {
   const real = Math.min(0.1, (now - lastNow) / 1000);
   lastNow = now;
+
+  if (state === 'replay' && rp) {
+    updateReplay(real);
+    requestAnimationFrame(frame);
+    return;
+  }
 
   if (state === 'countdown') {
     countdown -= real;
@@ -358,6 +378,12 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     return;
   }
+  if (state === 'replay') {
+    if (e.code === 'KeyR') restartReplay();
+    else if (e.code === 'Escape') toMenu();
+    else if (e.code === 'KeyP') $('rp-pause').click();
+    return;
+  }
   if (e.code === 'Enter' && state === 'menu') startRace();
   else if (e.code === 'KeyR' && state !== 'menu') startRace();
   else if (e.code === 'Escape' && state !== 'menu') toMenu();
@@ -388,6 +414,147 @@ $('menu-btn').addEventListener('click', toMenu);
 
 setupMenu();
 requestAnimationFrame(frame);
+
+// ---- replays -------------------------------------------------------------
+// Watch how another driver drove: the car is posed from their recorded ghost, and the keys
+// they pressed light up on screen. Their run is the data; nothing here changes the leaderboard.
+let rp = null;
+const KEYMAP = [['k-w', 1], ['k-s', 2], ['k-a', 4], ['k-d', 8], ['k-space', 16]];
+const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+async function watchReplay(entry) {
+  audio.unlock();
+  let g = null;
+  try {
+    g = entry.runId && pb && entry.runId === pb.runId && pb.inputs !== undefined ? pb : await reader().getGhost(dayKey, entry.runId);
+  } catch (err) {
+    console.error('Could not load replay', err);
+  }
+  if (!g || !g.ghost) return alert('Could not load that replay. Check your connection and try again.');
+  const player = new GhostPlayer(unpackSamples(g.ghost), g.timeMs / 1000);
+  rp = {
+    name: entry.name,
+    player,
+    inputs: unpackInputs(g.inputs),
+    t: 0,
+    paused: false,
+    speed: 1,
+    done: false,
+    // the renderer and minimap read this like a Sim
+    car: { x: 0, y: 0, a: 0, vx: 0, vy: 0, steer: 0, beta: 0, drifting: false, charge: 0, boostT: 0 },
+    dist: 0,
+    time: 0,
+  };
+  state = 'replay';
+  ghost = null;
+  show('menu', false);
+  show('finish', false);
+  show('hud', true);
+  show('replay', true);
+  $('rp-name').textContent = entry.name;
+  $('rp-time').textContent = fmt(g.timeMs);
+  $('rp-pause').textContent = 'PAUSE';
+  $('rp-speed').textContent = 'SPEED 1x';
+  show('rp-keys', !!rp.inputs);
+  show('rp-nokeys', !rp.inputs);
+  setBanner('');
+  restartReplay();
+}
+
+function restartReplay() {
+  if (!rp) return;
+  rp.t = 0;
+  rp.done = false;
+  rp.paused = false;
+  $('rp-pause').textContent = 'PAUSE';
+  rp.car.steer = 0;
+  rp.car.drifting = false;
+  rp.prevPose = null;
+  poseReplay(0);
+  renderer.reset(rp);
+  setBanner('');
+}
+
+function poseReplay(dt) {
+  const P = rp.player;
+  const c = rp.car;
+  const pose = P.at(rp.t);
+  const a0 = P.at(Math.max(0, rp.t - 0.03));
+  const a1 = P.at(Math.min(P.time, rp.t + 0.03));
+  const span = Math.max(0.001, Math.min(P.time, rp.t + 0.03) - Math.max(0, rp.t - 0.03));
+  c.vx = (a1.x - a0.x) / span;
+  c.vy = (a1.y - a0.y) / span;
+  c.x = pose.x;
+  c.y = pose.y;
+  c.a = pose.a;
+  const speed = Math.hypot(c.vx, c.vy);
+  const mask = rp.inputs ? rp.inputs[Math.min(rp.inputs.length - 1, Math.floor(rp.t * 120))] : 0;
+  rp.mask = mask;
+  const want = (mask & 8 ? 1 : 0) - (mask & 4 ? 1 : 0);
+  c.steer += (want - c.steer) * Math.min(1, dt * 9);
+  c.beta = speed > 60 ? wrapA(Math.atan2(c.vy, c.vx) - c.a) : 0;
+  const slip = Math.abs(c.beta);
+  c.drifting = c.drifting ? slip > PHYS.driftExitSlip && speed > PHYS.driftExitSpeed : slip > PHYS.driftEnterSlip && speed > 150;
+  // distance from the road centre, for skid marks
+  const T = track;
+  const base = Math.floor(pose.prog);
+  let best = Infinity;
+  for (let k = -3; k <= 4; k++) {
+    const i = (((base + k) % T.n) + T.n) % T.n;
+    best = Math.min(best, Math.hypot(c.x - T.xs[i], c.y - T.ys[i]));
+  }
+  rp.dist = best;
+  rp.time = rp.t;
+  rp.prog = pose.prog;
+}
+
+function updateReplay(real) {
+  if (!rp.paused && !rp.done) {
+    rp.t += real * rp.speed;
+    if (rp.t >= rp.player.time) {
+      rp.t = rp.player.time;
+      rp.done = true;
+      setBanner('REPLAY FINISHED ' + fmt(rp.player.time * 1000));
+    }
+  }
+  poseReplay(real);
+  for (const [id, bit] of KEYMAP) $(id).classList.toggle('on', !!(rp.mask & bit));
+  const c = rp.car;
+  const speed = Math.hypot(c.vx, c.vy);
+  $('hud-time').textContent = fmt(rp.t * 1000);
+  $('hud-lap').textContent = `LAP ${Math.min(LAPS, Math.floor(Math.max(0, rp.prog) / track.n) + 1)}/${LAPS}`;
+  $('hud-speed').textContent = String(Math.round(speed * 0.3));
+  $('hud-delta').textContent = '';
+  $('boost-fill').style.width = '0%';
+  audio.update(real, {
+    active: !rp.paused && !rp.done,
+    speed: speed / PHYS.maxSpeed,
+    throttle: !!(rp.mask & 1),
+    drifting: c.drifting,
+    slip: Math.min(1, Math.abs(Math.sin(c.beta))),
+    onRoad: rp.dist <= track.halfWidth + PHYS.kerb,
+    boosting: false,
+  });
+  renderer.orbit = false;
+  renderer.update(rp.paused ? 0 : real, rp);
+  renderer.draw(rp, null);
+  drawMinimap($('minimap'), miniMap, rp, null);
+}
+
+$('rp-back').addEventListener('click', toMenu);
+$('rp-restart').addEventListener('click', restartReplay);
+$('rp-pause').addEventListener('click', (e) => {
+  if (!rp) return;
+  rp.paused = !rp.paused;
+  e.currentTarget.textContent = rp.paused ? 'PLAY' : 'PAUSE';
+  e.currentTarget.blur();
+});
+$('rp-speed').addEventListener('click', (e) => {
+  if (!rp) return;
+  rp.speed = rp.speed === 1 ? 0.5 : rp.speed === 0.5 ? 0.25 : 1;
+  e.currentTarget.textContent = `SPEED ${rp.speed === 1 ? '1x' : rp.speed === 0.5 ? '0.5x' : '0.25x'}`;
+  e.currentTarget.blur();
+});
 
 // ---- accounts ------------------------------------------------------------
 let authMode = 'in';
