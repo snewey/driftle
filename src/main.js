@@ -134,26 +134,43 @@ async function refreshMenuData() {
   $('lb-title').textContent = boardKind === 'online' ? "TODAY'S WORLDWIDE LEADERBOARD" : 'YOUR BEST TIMES TODAY';
   $('lb-note').textContent =
     boardKind === 'online'
-      ? account ? 'One best time per driver. Resets with the track.' : 'One best time per driver. Create a free account (left) to post your own time.'
+      ? account ? 'One best time per driver. Click a name to watch or race them.' : 'One best time per driver. Click a name to watch or race them. Create a free account (left) to post yours.'
       : 'Offline leaderboard (this browser only).';
+  const lead = board.length ? board[0].timeMs : 0;
   board.forEach((r, idx) => {
     const li = document.createElement('li');
-    if (r.isYou && boardKind === 'online') li.className = 'you';
-    const name = document.createElement('span');
-    const label = `${boardKind === 'online' ? r.rank : idx + 1}. ${r.name}`;
+    const rank = boardKind === 'online' ? r.rank : idx + 1;
+    if (r.isYou && boardKind === 'online') li.classList.add('you');
+    if (rank <= 3) li.classList.add('p' + rank);
+    if (selected && selected.runId === r.runId) li.classList.add('sel');
+
+    const rk = document.createElement('span');
+    rk.className = 'rk';
+    rk.textContent = String(rank);
+
+    let who;
     if (r.hasGhost) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'who';
-      btn.textContent = label;
-      btn.title = 'Watch this run';
-      btn.addEventListener('click', () => selectEntry(r));
-      if (selected && selected.runId === r.runId) li.classList.add('sel');
-      name.appendChild(btn);
-    } else name.textContent = label;
+      who = document.createElement('button');
+      who.type = 'button';
+      who.title = 'Click to watch this run or race their ghost';
+      who.addEventListener('click', () => selectEntry(r));
+    } else who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = r.name;
+    if (r.isYou && boardKind === 'online') {
+      const tag = document.createElement('em');
+      tag.textContent = 'YOU';
+      who.append(tag);
+    }
+
     const time = document.createElement('b');
+    time.className = 'tm';
     time.textContent = fmt(r.timeMs);
-    li.append(name, time);
+    const gap = document.createElement('span');
+    gap.className = 'gap';
+    gap.textContent = idx === 0 || r.timeMs === lead ? '' : `+${((r.timeMs - lead) / 1000).toFixed(3)}`;
+
+    li.append(rk, who, time, gap);
     list.appendChild(li);
   });
 }
@@ -184,10 +201,10 @@ function selectEntry(r) {
   const mine = pb && r.runId === pb.runId;
   $('lb-actions-name').textContent = `${r.name}  ${fmt(r.timeMs)}`;
   $('act-vs').textContent = mine ? 'RACE MY GHOST' : 'RACE THEIR GHOST';
-  document.querySelectorAll('#leaderboard li').forEach((li) => li.classList.remove('sel'));
-  const btns = [...document.querySelectorAll('#leaderboard .who')];
+  const rows = [...document.querySelectorAll('#leaderboard li')];
+  rows.forEach((li) => li.classList.remove('sel'));
   const i = (cacheBoard || []).findIndex((x) => x.runId === r.runId);
-  if (btns[i]) btns[i].closest('li').classList.add('sel');
+  if (rows[i]) rows[i].classList.add('sel');
 }
 
 // ---- race flow -----------------------------------------------------------
