@@ -35,7 +35,25 @@ let lastNow = performance.now();
 let bannerUntil = 0;
 let lastBanner = '';
 let lastCount = 0;
-let ghostPicked = false; // true once the player has chosen a ghost option themselves
+let ghostOn = loadGhostPref(); // press G to turn your ghost off or on
+let opponent = null; // { runId, name, timeMs } when racing someone else's ghost; null = your own best
+let selected = null;
+let cacheBoard = []; // leaderboard entry the player clicked
+
+function loadGhostPref() {
+  try {
+    return localStorage.getItem('driftle:v1:ghost') !== '0';
+  } catch {
+    return true;
+  }
+}
+function saveGhostPref() {
+  try {
+    localStorage.setItem('driftle:v1:ghost', ghostOn ? '1' : '0');
+  } catch {
+    /* private window: not remembered */
+  }
+}
 
 const input = { throttle: false, brake: false, left: false, right: false, handbrake: false };
 const KEYS = {
@@ -101,18 +119,9 @@ async function refreshMenuData() {
     boardKind = 'local';
   }
 
-  const sel = $('ghost-select');
-  const prev = sel.value;
-  sel.innerHTML = '';
-  const none = new Option('No ghost', 'none');
-  sel.add(none);
-  if (pb) sel.add(new Option(`My best today (${fmt(pb.timeMs)})`, 'pb'));
-  for (const r of board) {
-    if (boardKind === 'online' && !r.isYou && r.hasGhost) sel.add(new Option(`${r.name} (${fmt(r.timeMs)})`, 'lb:' + r.runId));
-  }
-  // Default to racing your own best, unless the player has deliberately picked something else.
-  const prevStillValid = prev && [...sel.options].some((o) => o.value === prev);
-  sel.value = ghostPicked && prevStillValid ? prev : pb ? 'pb' : 'none';
+  if (opponent && !board.some((r) => r.runId === opponent.runId)) opponent = null;
+  cacheBoard = board;
+  renderGhostRow();
 
   const list = $('leaderboard');
   list.innerHTML = '';
@@ -138,7 +147,8 @@ async function refreshMenuData() {
       btn.className = 'who';
       btn.textContent = label;
       btn.title = 'Watch this run';
-      btn.addEventListener('click', () => watchReplay(r));
+      btn.addEventListener('click', () => selectEntry(r));
+      if (selected && selected.runId === r.runId) li.classList.add('sel');
       name.appendChild(btn);
     } else name.textContent = label;
     const time = document.createElement('b');
@@ -146,6 +156,38 @@ async function refreshMenuData() {
     li.append(name, time);
     list.appendChild(li);
   });
+}
+
+// ---- ghost -----------------------------------------------------------------
+function renderGhostRow() {
+  let text;
+  if (!ghostOn) text = 'Ghost is off. Press G to turn it on.';
+  else if (opponent) text = `Racing ${opponent.name}'s ghost (${fmt(opponent.timeMs)})`;
+  else if (pb) text = `Racing your own best ghost (${fmt(pb.timeMs)})`;
+  else text = 'No ghost yet. Finish a run and your best becomes your ghost.';
+  $('ghost-text').textContent = text;
+  $('ghost-toggle').textContent = ghostOn ? 'GHOST ON [G]' : 'GHOST OFF [G]';
+  $('ghost-row').classList.toggle('off', !ghostOn);
+  $('ghost-reset').classList.toggle('hidden', !opponent);
+}
+
+function toggleGhost() {
+  ghostOn = !ghostOn;
+  saveGhostPref();
+  renderGhostRow();
+  if (state === 'countdown' || state === 'racing') setBanner(ghostOn ? 'GHOST ON' : 'GHOST OFF', 900);
+}
+
+function selectEntry(r) {
+  selected = r;
+  $('lb-actions').classList.remove('hidden');
+  const mine = pb && r.runId === pb.runId;
+  $('lb-actions-name').textContent = `${r.name}  ${fmt(r.timeMs)}`;
+  $('act-vs').textContent = mine ? 'RACE MY GHOST' : 'RACE THEIR GHOST';
+  document.querySelectorAll('#leaderboard li').forEach((li) => li.classList.remove('sel'));
+  const btns = [...document.querySelectorAll('#leaderboard .who')];
+  const i = (cacheBoard || []).findIndex((x) => x.runId === r.runId);
+  if (btns[i]) btns[i].closest('li').classList.add('sel');
 }
 
 // ---- race flow -----------------------------------------------------------
@@ -174,14 +216,14 @@ async function startRace() {
   sim = new Sim(track, LAPS);
   renderer.reset(sim);
   ghost = null;
-  const pick = $('ghost-select').value;
   try {
-    if (pick === 'pb' && pb) {
-      ghost = new GhostPlayer(unpackSamples(pb.ghost), pb.timeMs / 1000);
-    } else if (pick.startsWith('lb:')) {
-      const g = await reader().getGhost(dayKey, pick.slice(3));
-      if (g) ghost = new GhostPlayer(unpackSamples(g.ghost), g.timeMs / 1000);
+    // Your own best is loaded automatically; a leaderboard ghost replaces it if you picked one.
+    // The ghost is always loaded so G can switch it on mid-race; ghostOn only controls whether it shows.
+    if (opponent) {
+      const g = await reader().getGhost(dayKey, opponent.runId);
+      if (g && g.ghost) ghost = new GhostPlayer(unpackSamples(g.ghost), g.timeMs / 1000);
     }
+    if (!ghost && pb && pb.ghost) ghost = new GhostPlayer(unpackSamples(pb.ghost), pb.timeMs / 1000);
   } catch (err) {
     console.error('Could not load ghost', err);
   }
@@ -289,7 +331,7 @@ function updateHud(ghostPose) {
   fill.classList.toggle('ready', c.charge >= PHYS.minCharge);
 
   const delta = $('hud-delta');
-  if (ghost && state === 'racing' && sim.progMax > 0) {
+  if (ghost && ghostOn && state === 'racing' && sim.progMax > 0) {
     const d = sim.time - ghost.timeAtProg(sim.progMax);
     delta.textContent = `${d > 0 ? '+' : '-'}${Math.abs(d).toFixed(2)}`;
     delta.className = d > 0 ? 'behind' : 'ahead';
@@ -337,7 +379,7 @@ function frame(now) {
   }
   if (bannerUntil && now > bannerUntil) setBanner('');
 
-  const ghostPose = ghost ? ghost.at(sim.time) : null;
+  const ghostPose = ghost && ghostOn ? ghost.at(sim.time) : null;
   const c = sim.car;
   const spd = Math.hypot(c.vx, c.vy);
   const fwd = c.vx * Math.cos(c.a) + c.vy * Math.sin(c.a);
@@ -373,6 +415,10 @@ window.addEventListener('keydown', (e) => {
     setMuteUi(audio.toggleMute());
     return;
   }
+  if (e.code === 'KeyG' && state !== 'replay') {
+    toggleGhost();
+    return;
+  }
   if (KEYS[e.code]) {
     input[KEYS[e.code]] = true;
     e.preventDefault();
@@ -394,9 +440,7 @@ window.addEventListener('keyup', (e) => {
 window.addEventListener('blur', () => {
   for (const k of Object.keys(input)) input[k] = false;
 });
-$('ghost-select').addEventListener('change', () => {
-  ghostPicked = true;
-});
+
 function setMuteUi(m) {
   $('sound-chip').textContent = m ? 'SOUND OFF' : 'SOUND ON';
   $('sound-chip').classList.toggle('off', m);
@@ -541,6 +585,25 @@ function updateReplay(real) {
   drawMinimap($('minimap'), miniMap, rp, null);
 }
 
+$('act-watch').addEventListener('click', () => selected && watchReplay(selected));
+$('act-vs').addEventListener('click', () => {
+  if (!selected) return;
+  if (pb && selected.runId === pb.runId) opponent = null;
+  else opponent = { runId: selected.runId, name: selected.name, timeMs: selected.timeMs };
+  ghostOn = true;
+  saveGhostPref();
+  renderGhostRow();
+  $('ghost-row').classList.add('flash');
+  setTimeout(() => $('ghost-row').classList.remove('flash'), 1200);
+});
+$('ghost-toggle').addEventListener('click', (e) => {
+  toggleGhost();
+  e.currentTarget.blur();
+});
+$('ghost-reset').addEventListener('click', () => {
+  opponent = null;
+  renderGhostRow();
+});
 $('rp-back').addEventListener('click', toMenu);
 $('rp-restart').addEventListener('click', restartReplay);
 $('rp-pause').addEventListener('click', (e) => {
@@ -579,7 +642,8 @@ function setAccount(user, name) {
     $('account-btn').textContent = 'CREATE ACCOUNT / SIGN IN';
     $('account-btn').classList.add('primary-chip');
   }
-  ghostPicked = false;
+  opponent = null;
+  selected = null;
   refreshMenuData();
 }
 function setAuthMode(mode) {

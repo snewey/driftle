@@ -83,8 +83,14 @@
             <label class="label" for="name-input" id="name-label">DRIVER NAME</label>
             <input id="name-input" maxlength="16" autocomplete="off" spellcheck="false" />
 
-            <label class="label" for="ghost-select">RACE A GHOST</label>
-            <select id="ghost-select"></select>
+            <div class="label">GHOST</div>
+            <div id="ghost-row">
+              <div id="ghost-text" class="tiny"></div>
+              <div class="ghost-btns">
+                <button id="ghost-toggle" class="chip-inline" type="button">GHOST ON [G]</button>
+                <button id="ghost-reset" class="chip-inline hidden" type="button">USE MY BEST</button>
+              </div>
+            </div>
 
             <button id="start-btn" class="btn primary">RACE <small>[Enter]</small></button>
           </div>
@@ -92,6 +98,13 @@
             <canvas id="preview" width="360" height="240"></canvas>
             <div class="label" id="lb-title">TODAY'S LEADERBOARD</div>
             <ol id="leaderboard"></ol>
+            <div id="lb-actions" class="hidden">
+              <div id="lb-actions-name"></div>
+              <div class="ghost-btns">
+                <button id="act-watch" class="chip-inline" type="button">WATCH REPLAY</button>
+                <button id="act-vs" class="chip-inline primary-chip" type="button">RACE THEIR GHOST</button>
+              </div>
+            </div>
             <div class="muted tiny" id="lb-note">Offline leaderboard. Online daily rankings are coming soon.</div>
           </div>
         </div>
@@ -100,6 +113,7 @@
           <span><kbd>S</kbd><kbd>↓</kbd> brake / reverse</span>
           <span><kbd>A</kbd><kbd>D</kbd><kbd>←</kbd><kbd>→</kbd> steer</span>
           <span><kbd>Space</kbd> handbrake (kick the tail out)</span>
+          <span><kbd>G</kbd> ghost on/off</span>
           <span><kbd>R</kbd> restart</span>
           <span><kbd>Esc</kbd> menu</span>
           <span><kbd>M</kbd> sound</span>
