@@ -252,3 +252,29 @@ test('recorded key presses are small, and replaying them gives the same run', ()
   assert.equal(b.finishTime, a.finishTime);
   console.log(`      inputs: ${packed.length} bytes for ${a.finishTime.toFixed(1)}s`);
 });
+
+test('replay boost timeline matches the real run tick for tick', async () => {
+  const { boostTimeline } = await import('../src/replay.js');
+  let totalBoost = 0;
+  for (const day of ['2026-11-20', '2026-11-21', '2026-11-22']) {
+    const track = generateTrack(day);
+    const sim = new Sim(track, 3);
+    const real = [];
+    for (let i = 0; i < 400 / DT && !sim.finished; i++) {
+      const inp = autopilot(sim);
+      // kick the tail out in bends so drifts (and boosts) happen
+      inp.handbrake = Math.abs(Math.hypot(sim.car.vx, sim.car.vy)) > 350 && (inp.left || inp.right) && Math.floor(i / 60) % 3 === 0;
+      sim.step(inp);
+      real.push(sim.car.boostT > 0 ? 1 : 0);
+    }
+    assert.ok(sim.finished, day);
+    const masks = unpackInputs(packInputs(sim.inputRuns));
+    const flags = boostTimeline(track, 3, masks, Math.round(sim.finishTime * 1000));
+    assert.ok(flags, 'timeline accepted');
+    for (let i = 0; i < real.length; i++) assert.equal(flags[i], real[i], `${day} tick ${i}`);
+    totalBoost += real.reduce((a, b) => a + b, 0);
+    // a wrong finish time is rejected
+    assert.equal(boostTimeline(track, 3, masks, Math.round(sim.finishTime * 1000) + 500), null);
+  }
+  assert.ok(totalBoost > 0, 'the test drivers should have boosted at least once');
+});

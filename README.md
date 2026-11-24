@@ -114,3 +114,4 @@ only with Row Level Security turned on. The service role key must never be in th
 - **Past tracks**: open any of the last 14 days (`/?day=YYYY-MM-DD`). You can see that day's board, watch replays and race ghosts. Runs there are practice only: not posted, no coins (the database still only accepts today's date).
 - **Leaderboard cars**: `get_leaderboard` (migration `0005`) now returns each driver's car parts, and `src/thumbs.js` draws a small picture per car. Drawings are not included on the board to keep it light; they still show on replays and ghosts.
 - **Coin payout**: gold `+N` with a coin icon for each earning on the finish screen, plus a floating `+2` on every drift boost.
+- **Replay boost flames** (v0.7.1): a replay re-runs the recorded keys through the simulation (`src/replay.js`) to find the exact ticks the boost was active, so flames match the real run. Checked against the finish time; falls back to a speed guess if it doesn't match.

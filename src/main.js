@@ -12,6 +12,7 @@ import { initGarage, mockGarageApi } from './garage.js';
 import { loadDecal } from './car.js';
 import { DEFAULT_LOADOUT, cleanLoadout } from './catalog.js';
 import { carThumb } from './thumbs.js';
+import { boostTimeline } from './replay.js';
 
 const LAPS = 3;
 const $ = (id) => document.getElementById(id);
@@ -75,7 +76,7 @@ async function fetchCar(userId) {
   return car;
 }
 // online leaderboard run ids are the driver's user id
-const ownerId = (entry) => (reader().kind === 'online' ? entry.runId : null);
+const ownerId = (entry) => (boardKind === 'online' ? entry.runId : null);
 function showMyCar() {
   if (carOwner === 'me') return;
   carOwner = 'me';
@@ -325,7 +326,7 @@ async function startRace() {
     // Your own best is loaded automatically; a leaderboard ghost replaces it if you picked one.
     // The ghost is always loaded so G can switch it on mid-race; ghostOn only controls whether it shows.
     if (opponent) {
-      const g = await reader().getGhost(dayKey, opponent.runId);
+      const g = await (boardKind === 'online' ? reader() : localBackend).getGhost(dayKey, opponent.runId);
       if (g && g.ghost) ghost = new GhostPlayer(unpackSamples(g.ghost), g.timeMs / 1000);
     }
     if (!ghost && pb && pb.ghost) ghost = new GhostPlayer(unpackSamples(pb.ghost), pb.timeMs / 1000);
@@ -605,7 +606,7 @@ async function watchReplay(entry) {
   audio.unlock();
   let g = null;
   try {
-    g = entry.runId && pb && entry.runId === pb.runId && pb.inputs !== undefined ? pb : await reader().getGhost(dayKey, entry.runId);
+    g = entry.runId && pb && entry.runId === pb.runId && pb.inputs !== undefined ? pb : await (boardKind === 'online' ? reader() : localBackend).getGhost(dayKey, entry.runId);
   } catch (err) {
     console.error('Could not load replay', err);
   }
@@ -616,11 +617,13 @@ async function watchReplay(entry) {
     carOwner = oid;
     renderer.setCar(theirs.loadout, theirs.decals);
   } else showMyCar();
+  const inputs = unpackInputs(g.inputs);
   const player = new GhostPlayer(unpackSamples(g.ghost), g.timeMs / 1000);
   rp = {
     name: entry.name,
     player,
-    inputs: unpackInputs(g.inputs),
+    inputs,
+    boostFlags: inputs ? boostTimeline(track, LAPS, inputs, g.timeMs) : null,
     t: 0,
     paused: false,
     speed: 1,
@@ -679,7 +682,8 @@ function poseReplay(dt) {
   c.steer += (want - c.steer) * Math.min(1, dt * 9);
   c.beta = speed > 60 ? wrapA(Math.atan2(c.vy, c.vx) - c.a) : 0;
   const slip = Math.abs(c.beta);
-  c.boostT = speed > PHYS.maxSpeed * 1.01 ? 1 : 0;
+  const bf = rp.boostFlags;
+  c.boostT = bf ? bf[Math.min(bf.length - 1, Math.floor(rp.t * 120))] : speed > PHYS.maxSpeed * 1.01 ? 1 : 0;
   c.drifting = c.drifting ? slip > PHYS.driftExitSlip && speed > PHYS.driftExitSpeed : slip > PHYS.driftEnterSlip && speed > 150;
   // distance from the road centre, for skid marks
   const T = track;
@@ -956,3 +960,6 @@ function openArchive() {
   show('home', false);
   show('archive', true);
 }
+
+// Dev-only helper for checking replays: jump to a moment (seconds).
+if (import.meta.env.DEV) window.__seek = (t) => rp && (rp.t = t);
