@@ -11,12 +11,20 @@ import * as online from './online.js';
 import { initGarage, mockGarageApi } from './garage.js';
 import { loadDecal } from './car.js';
 import { DEFAULT_LOADOUT, cleanLoadout } from './catalog.js';
+import { carThumb } from './thumbs.js';
 
 const LAPS = 3;
 const $ = (id) => document.getElementById(id);
 
 // ---- setup ---------------------------------------------------------------
-const dayKey = dayKeyUTC();
+const todayKey = dayKeyUTC();
+const ARCHIVE_DAYS = 14;
+const dayOffset = (key, n) => new Date(Date.parse(key + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+// ?day=YYYY-MM-DD opens one of the last 14 days as a practice track (never today's, never the future)
+const wantedDay = new URLSearchParams(location.search).get('day');
+const dayKey =
+  wantedDay && /^\d{4}-\d{2}-\d{2}$/.test(wantedDay) && wantedDay < todayKey && wantedDay >= dayOffset(todayKey, -ARCHIVE_DAYS) ? wantedDay : todayKey;
+const isArchive = dayKey !== todayKey;
 const track = generateTrack(dayKey);
 const localBackend = new LocalBackend();
 let backend = localBackend;
@@ -73,10 +81,18 @@ function showMyCar() {
   carOwner = 'me';
   renderer.setCar(myLoadout, myDecals);
 }
+const COIN = '<i class="coin"></i>';
+function coinPop(n) {
+  const el = document.createElement('div');
+  el.className = 'coin-pop gold';
+  el.innerHTML = `+${n} ${COIN}`;
+  $('hud').appendChild(el);
+  setTimeout(() => el.remove(), 1300);
+}
 function setCoinBadge(n) {
   const b = $('coin-badge');
   if (n == null) return b.classList.add('hidden');
-  b.textContent = `◎ ${n} Drift Coins`;
+  b.innerHTML = `${COIN} <b>${n}</b> Drift Coins`;
   b.classList.remove('hidden');
 }
 let cacheBoard = []; // leaderboard entry the player clicked
@@ -126,20 +142,42 @@ function setupMenu() {
   });
   $('name-input').value = getSavedName();
   $('day-label').textContent += ' · ' + renderer.themeName;
+  $('home-track').textContent = track.name;
+  $('home-day').textContent = $('day-label').textContent;
   const pv = $('preview');
   pv.getContext('2d').drawImage(previewMap.base, 0, 0);
+  $('home-map').getContext('2d').drawImage(previewMap.base, 0, 0);
+  if (isArchive) {
+    $('track-label').textContent = 'PAST TRACK (PRACTICE)';
+    $('reset-line').innerHTML = "Practice only: times on past tracks aren't posted.<b id=\"reset-timer\" hidden></b>";
+    $('home-play').innerHTML = "PLAY TODAY'S TRACK <small>[Enter]</small>";
+  }
   refreshMenuData();
   tickResetTimer();
   setInterval(tickResetTimer, 1000);
 }
+
+function showHome() {
+  show('menu', false);
+  show('archive', false);
+  show('home', true);
+}
+function showTrackScreen() {
+  show('home', false);
+  show('archive', false);
+  show('menu', true);
+}
+const homeVisible = () => !$('home').classList.contains('hidden');
 
 function tickResetTimer() {
   const ms = msUntilReset();
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   const s = Math.floor((ms % 60000) / 1000);
-  $('reset-timer').textContent = [h, m, s].map((v) => String(v).padStart(2, '0')).join(':');
-  if (dayKeyUTC() !== dayKey && (state === 'menu' || state === 'finished')) location.reload();
+  const t = [h, m, s].map((v) => String(v).padStart(2, '0')).join(':');
+  $('reset-timer').textContent = t;
+  $('home-timer').textContent = t;
+  if (!isArchive && dayKeyUTC() !== dayKey && (state === 'menu' || state === 'finished')) location.reload();
 }
 
 async function refreshMenuData() {
@@ -169,10 +207,10 @@ async function refreshMenuData() {
   if (!board.length) {
     const li = document.createElement('li');
     li.className = 'empty';
-    li.textContent = 'No runs yet today. Be the first.';
+    li.textContent = isArchive ? 'Nobody posted a time on this day.' : 'No runs yet today. Be the first.';
     list.appendChild(li);
   }
-  $('lb-title').textContent = boardKind === 'online' ? "TODAY'S WORLDWIDE LEADERBOARD" : 'YOUR BEST TIMES TODAY';
+  $('lb-title').textContent = (isArchive ? 'LEADERBOARD FOR THIS DAY' : boardKind === 'online' ? "TODAY'S WORLDWIDE LEADERBOARD" : 'YOUR BEST TIMES TODAY');
   $('lb-note').textContent =
     boardKind === 'online'
       ? account ? 'One best time per driver. Click a name to watch or race them.' : 'One best time per driver. Click a name to watch or race them. Create a free account (left) to post yours.'
@@ -211,7 +249,14 @@ async function refreshMenuData() {
     gap.className = 'gap';
     gap.textContent = idx === 0 || r.timeMs === lead ? '' : `+${((r.timeMs - lead) / 1000).toFixed(3)}`;
 
-    li.append(rk, who, time, gap);
+    const pic = document.createElement('img');
+    pic.className = 'carpic';
+    pic.alt = '';
+    const lo = boardKind === 'online' ? (r.isYou ? myLoadout : r.loadout) : null;
+    const url = lo ? carThumb(lo) : null;
+    if (url) pic.src = url;
+    else pic.classList.add('none');
+    li.append(rk, pic, who, time, gap);
     list.appendChild(li);
   });
 }
@@ -309,7 +354,7 @@ function toMenu() {
   ghost = null;
   show('hud', false);
   show('finish', false);
-  show('menu', true);
+  showTrackScreen();
   setBanner('');
   refreshMenuData();
 }
@@ -318,6 +363,7 @@ function handleEvents() {
   for (const e of sim.events.splice(0)) {
     if (e.type === 'boost') {
       boostCount++;
+      if (account && !isArchive && boostCount <= 20) coinPop(2);
       setBanner('DRIFT BOOST!', 900);
       audio.boost();
     } else if (e.type === 'crash') {
@@ -346,8 +392,9 @@ async function onFinish() {
   const wait = new Promise((r) => setTimeout(r, 900));
   let res = null;
   try {
-    res = await backend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData, inputs: inputsData, boosts: boostCount });
-    if (backend.kind === 'online') await localBackend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData, inputs: inputsData });
+    if (isArchive) res = await localBackend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData, inputs: inputsData });
+    else res = await backend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData, inputs: inputsData, boosts: boostCount });
+    if (!isArchive && backend.kind === 'online') await localBackend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData, inputs: inputsData });
   } catch (err) {
     console.error('Could not save run', err);
   }
@@ -358,7 +405,7 @@ async function onFinish() {
   $('finish-time').textContent = fmt(timeMs);
   const sub = $('finish-sub');
   sub.className = 'sub';
-  if (backend.kind === 'online' && res && res.isPB === false && prevBest != null) {
+  if (!isArchive && backend.kind === 'online' && res && res.isPB === false && prevBest != null) {
     sub.textContent = `+${((timeMs - prevBest) / 1000).toFixed(3)}s off your best`;
     sub.classList.add('bad');
   } else if (prevBest == null) {
@@ -379,10 +426,16 @@ async function onFinish() {
     ul.appendChild(li);
   });
   const cb = $('finish-coins');
-  if (account && res && res.coins) {
+  if (isArchive) {
+    cb.textContent = 'Practice run on a past track: no Drift Coins and not posted.';
+    cb.classList.remove('hidden');
+  } else if (account && res && res.coins) {
     const c = res.coins;
     const rows = [['Finished the race', c.finish], [`Drift boosts x${Math.min(boostCount, 20)}`, c.boosts], ['New personal best', c.pb], ['Top of the board', c.top]].filter((r) => r[1] > 0);
-    cb.innerHTML = `<b>+${c.total} Drift Coins</b>` + rows.map((r) => `<span>${r[0]} +${r[1]}</span>`).join('') + (c.total === 0 ? '<span>Daily coin limit reached. Back tomorrow!</span>' : '');
+    cb.innerHTML =
+      rows.map((r, i) => `<div class="coin-line" style="animation-delay:${i * 0.22}s"><span>${r[0]}</span><b class="gold">+${r[1]} ${COIN}</b></div>`).join('') +
+      `<div class="coin-total" style="animation-delay:${rows.length * 0.22 + 0.1}s"><span>TOTAL</span><b class="gold">+${c.total} ${COIN}</b></div>` +
+      (c.total === 0 ? '<div class="muted tiny">Daily coin limit reached. Back tomorrow!</div>' : '');
     cb.classList.remove('hidden');
     if (res.wallet != null) setCoinBadge(res.wallet);
   } else if (!account) {
@@ -507,8 +560,11 @@ window.addEventListener('keydown', (e) => {
     else if (e.code === 'KeyP') $('rp-pause').click();
     return;
   }
-  if (e.code === 'Enter' && state === 'menu') startRace();
-  else if (e.code === 'KeyR' && state !== 'menu') startRace();
+  if (!$('archive').classList.contains('hidden')) return;
+  if (e.code === 'Enter' && state === 'menu') (homeVisible() ? showTrackScreen() : startRace());
+  else if (e.code === 'Escape' && state === 'menu') {
+    if (!homeVisible()) showHome();
+  } else if (e.code === 'KeyR' && state !== 'menu') startRace();
   else if (e.code === 'Escape' && state !== 'menu') toMenu();
 });
 window.addEventListener('keyup', (e) => {
@@ -534,6 +590,8 @@ $('retry-btn').addEventListener('click', startRace);
 $('menu-btn').addEventListener('click', toMenu);
 
 setupMenu();
+if (isArchive) showTrackScreen();
+else showHome();
 requestAnimationFrame(frame);
 
 // ---- replays -------------------------------------------------------------
@@ -808,7 +866,7 @@ if (onlineAvailable) {
       renderer.setCar(myLoadout, myDecals);
     },
   });
-  $('garage-btn').addEventListener('click', () => {
+  $('home-garage').addEventListener('click', () => {
     if (!account) {
       setAuthMode('in');
       authMsg('Sign in to customise your car.', true);
@@ -859,5 +917,42 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('mockgarage'
   });
   $('account').classList.remove('hidden');
   setCoinBadge(500);
-  $('garage-btn').addEventListener('click', () => garageUI.open('mock-user'));
+  $('home-garage').addEventListener('click', () => garageUI.open('mock-user'));
+}
+
+// ---- home screen and past tracks ---------------------------------------------
+$('home-play').addEventListener('click', () => {
+  if (isArchive) location.href = location.pathname;
+  else showTrackScreen();
+});
+$('menu-home').addEventListener('click', showHome);
+if (!onlineAvailable && !(import.meta.env.DEV && new URLSearchParams(location.search).has('mockgarage'))) $('home-garage').classList.add('hidden');
+$('home-archive').addEventListener('click', openArchive);
+$('archive-close').addEventListener('click', showHome);
+
+function openArchive() {
+  const list = $('archive-list');
+  if (!list.childElementCount) {
+    for (let i = 1; i <= ARCHIVE_DAYS; i++) {
+      const key = dayOffset(todayKey, -i);
+      const t = generateTrack(key);
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'arch-card';
+      const cv = document.createElement('canvas');
+      cv.width = 150;
+      cv.height = 100;
+      cv.getContext('2d').drawImage(makeMinimap(t, 150, 100).base, 0, 0);
+      const info = document.createElement('div');
+      const d = new Date(key + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+      info.innerHTML = `<b></b><span class="muted tiny"></span>`;
+      info.firstChild.textContent = t.name;
+      info.lastChild.textContent = d;
+      card.append(cv, info);
+      card.addEventListener('click', () => (location.search = `?day=${key}`));
+      list.appendChild(card);
+    }
+  }
+  show('home', false);
+  show('archive', true);
 }

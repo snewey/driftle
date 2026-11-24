@@ -117,26 +117,53 @@
         </div>
       </section>
 
-      <section id="menu" class="panel">
+      <section id="home" class="panel hidden">
+        <header>
+          <h1>DRIFT<span>LE</span></h1>
+          <p class="tag">One track a day. One shot at the top. Drift it.</p>
+        </header>
+        <div class="home-grid">
+          <div class="home-today">
+            <div class="label">TODAY'S TRACK</div>
+            <div id="home-track" class="big">...</div>
+            <div id="home-day" class="muted"></div>
+            <canvas id="home-map" width="360" height="240"></canvas>
+            <div class="muted">New track in <b id="home-timer">--:--:--</b></div>
+          </div>
+          <div class="home-actions">
+            <button id="home-play" class="btn primary">PLAY TODAY'S TRACK <small>[Enter]</small></button>
+            <button id="home-garage" class="btn" type="button">GARAGE <small>customise your car</small></button>
+            <button id="home-archive" class="btn" type="button">PAST TRACKS <small>last 14 days</small></button>
+            <div id="account" class="account hidden">
+              <span id="account-text" class="tiny"></span>
+              <div id="coin-badge" class="coin-badge hidden"></div>
+              <div class="ghost-btns">
+                <button id="account-btn" class="chip-inline" type="button">SIGN IN</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <section id="archive" class="panel hidden">
+        <div class="g-head"><h2>PAST TRACKS</h2><button id="archive-close" class="chip-inline" type="button">BACK</button></div>
+        <p class="muted tiny">Replay any of the last 14 days. You can see that day's leaderboard, watch replays and race ghosts. Times on past tracks are practice only and are not posted.</p>
+        <div id="archive-list"></div>
+      </section>
+
+      <section id="menu" class="panel hidden">
         <header>
           <h1>DRIFT<span>LE</span></h1>
           <p class="tag">One track a day. One shot at the top. Drift it.</p>
         </header>
         <div class="grid">
           <div class="col">
-            <div class="label">TODAY'S TRACK</div>
+            <button id="menu-home" class="chip-inline" type="button">← HOME</button>
+            <div class="label" id="track-label">TODAY'S TRACK</div>
             <div id="track-name" class="big">...</div>
             <div id="day-label" class="muted"></div>
-            <div class="muted">New track in <b id="reset-timer">--:--:--</b></div>
-
-            <div id="account" class="account hidden">
-              <span id="account-text" class="tiny"></span>
-              <div id="coin-badge" class="coin-badge hidden"></div>
-              <div class="ghost-btns">
-                <button id="garage-btn" class="chip-inline" type="button">GARAGE: CUSTOMISE YOUR CAR</button>
-                <button id="account-btn" class="chip-inline" type="button">SIGN IN</button>
-              </div>
-            </div>
+            <div class="muted" id="reset-line">New track in <b id="reset-timer">--:--:--</b></div>
 
             <label class="label" for="name-input" id="name-label">DRIVER NAME</label>
             <input id="name-input" maxlength="16" autocomplete="off" spellcheck="false" />

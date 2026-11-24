@@ -106,6 +106,7 @@ export class OnlineBackend {
       timeMs: r.time_ms,
       rank: Number(r.rank),
       hasGhost: true,
+      loadout: r.car ? { car: r.car, paint: r.paint, flame: r.flame, exhaust: r.exhaust, spoiler: r.spoiler, wheels: r.wheels, glow: r.glow } : null,
       isYou: !!this.user && r.user_id === this.user.id,
     }));
   }

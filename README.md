@@ -107,3 +107,10 @@ only with Row Level Security turned on. The service role key must never be in th
 - **Garage**: 5 cars, 16 paints, 7 boost-flame colours (blue, purple, rainbow...), exhausts, spoilers, wheels and underglow. All cosmetic. Prices live in `src/catalog.js` and are seeded into `shop_items` (migration `0004`). Buying and saving go through `buy_item` / `set_loadout`, which check you own the item.
 - **Draw on your car**: side and bonnet/roof canvases with brush, eraser, text and stamps. Saved as small PNGs with your loadout and shown to other players on your ghost and replay.
 - Dev preview without an account: `npm run dev`, open `/?mockgarage`.
+
+## v0.7: Home screen, past tracks, car pictures, coin payout
+
+- **Home screen** with Play, Garage, Past Tracks, account and coin balance. Esc on the track screen goes back to it.
+- **Past tracks**: open any of the last 14 days (`/?day=YYYY-MM-DD`). You can see that day's board, watch replays and race ghosts. Runs there are practice only: not posted, no coins (the database still only accepts today's date).
+- **Leaderboard cars**: `get_leaderboard` (migration `0005`) now returns each driver's car parts, and `src/thumbs.js` draws a small picture per car. Drawings are not included on the board to keep it light; they still show on replays and ghosts.
+- **Coin payout**: gold `+N` with a coin icon for each earning on the finish screen, plus a floating `+2` on every drift boost.
