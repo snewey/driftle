@@ -197,3 +197,48 @@ kbd { background: #1a2231; border: 1px solid var(--line); border-bottom-width: 2
 #leaderboard .who em { font-style:normal; font-size:9px; letter-spacing:.1em; margin-left:7px; padding:2px 5px; border-radius:4px; background:var(--accent); color:#fff; vertical-align:middle; }
 #leaderboard .tm { font-variant-numeric:tabular-nums; color:var(--text); margin:0; text-align:right; }
 #leaderboard .gap { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; text-align:right; margin:0; }
+
+/* coins and garage */
+.coin-badge { font-weight:700; color:#ffd23b; font-size:13px; }
+.coins-box { margin-top:10px; padding:10px 12px; border:1px solid #ffd23b66; border-radius:8px; background:rgba(255,210,59,.07); font-size:13px; line-height:1.6; }
+.coins-box b { color:#ffd23b; }
+#garage { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(1040px,96vw); max-height:94vh; overflow:auto; z-index:40; padding:18px 20px; display:flex; flex-direction:column; gap:12px; }
+.g-head { display:flex; align-items:center; gap:14px; }
+.g-head h2 { margin:0; letter-spacing:.12em; flex:1; }
+.g-coins { font-weight:700; color:#ffd23b; }
+.g-body { display:grid; grid-template-columns:minmax(300px,43%) 1fr; gap:16px; }
+.g-left { display:flex; flex-direction:column; gap:8px; }
+#g-canvas { width:100%; height:330px; border-radius:10px; background:radial-gradient(circle at 50% 35%, #34404f, #171b22); cursor:grab; touch-action:none; }
+#g-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.g-tab { background:none; border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:6px 10px; font:600 11px/1 inherit; letter-spacing:.06em; cursor:pointer; }
+.g-tab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+#g-items { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; max-height:340px; overflow-y:auto; padding-right:2px; scrollbar-width:thin; }
+.g-card { position:relative; border:1px solid var(--line); border-radius:8px; padding:10px; background:rgba(255,255,255,.03); cursor:pointer; display:flex; flex-direction:column; gap:4px; min-height:84px; }
+.g-card:hover { background:rgba(255,255,255,.07); }
+.g-card.on { border-color:var(--accent2); background:rgba(126,232,255,.08); }
+.g-card .sw { width:26px; height:26px; border-radius:50%; display:block; border:2px solid rgba(255,255,255,.25); }
+.g-card .nm { font-weight:700; font-size:13px; }
+.g-card .bl { font-size:11px; color:var(--muted); }
+.g-card .st { font-size:10px; letter-spacing:.1em; color:var(--accent2); min-height:12px; }
+.g-buy { margin-top:auto; border:0; border-radius:6px; padding:6px 8px; background:#ffd23b; color:#1a1400; font:800 11px/1 inherit; cursor:pointer; }
+.g-buy.poor { background:#4a4630; color:#bba96a; }
+#g-draw { display:flex; flex-direction:column; gap:8px; }
+.g-surf { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.chip-inline.on { background:var(--accent2); color:#06121a; border-color:var(--accent2); }
+#g-draw-wrap { position:relative; border-radius:8px; border:1px solid var(--line); overflow:hidden; width:100%; max-width:470px; aspect-ratio:512/192; touch-action:none; background:#ff3d71; }
+#g-draw-wrap.portrait { max-width:230px; aspect-ratio:256/448; }
+.draw-cv { width:100%; height:100%; display:block; cursor:crosshair; touch-action:none; }
+#g-tools { display:flex; flex-wrap:wrap; gap:6px; }
+.g-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+#g-swatches { display:flex; gap:5px; flex-wrap:wrap; }
+.swatch { width:22px; height:22px; border-radius:50%; border:2px solid rgba(255,255,255,.3); cursor:pointer; padding:0; }
+.swatch.on { border-color:#fff; box-shadow:0 0 0 2px var(--accent); }
+#g-color { width:34px; height:26px; padding:0; border:0; background:none; }
+#g-text { width:110px; }
+.g-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+#g-msg { color:var(--muted); }
+#g-msg.bad { color:#ff8a8a; }
+#g-save { width:auto; padding:10px 22px; }
+#g-save.pulse { animation:pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow:0 0 0 4px rgba(255,61,113,.35); } }
+@media (max-width: 800px) { .g-body { grid-template-columns:1fr; } }

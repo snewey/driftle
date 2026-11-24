@@ -45,6 +45,60 @@
         <div id="rp-nokeys" class="muted tiny hidden">Key presses were not recorded for this run.</div>
       </div>
 
+      <section id="garage" class="panel hidden">
+        <div class="g-head">
+          <h2>GARAGE</h2>
+          <div id="g-coins" class="g-coins">◎ 0</div>
+          <button id="g-close" class="chip-inline" type="button">CLOSE</button>
+        </div>
+        <div class="g-body">
+          <div class="g-left">
+            <canvas id="g-canvas"></canvas>
+            <div class="ghost-btns">
+              <button id="g-flame" class="chip-inline" type="button" data-on="0">BOOST FLAMES: OFF</button>
+            </div>
+            <div class="muted tiny">Drag the car to spin it. Everything here is for looks only: every car drives the same.</div>
+          </div>
+          <div class="g-right">
+            <div id="g-tabs"></div>
+            <div id="g-items"></div>
+            <div id="g-draw" class="hidden">
+              <div class="g-surf">
+                <button id="g-surf-side" class="chip-inline on" type="button">SIDES</button>
+                <button id="g-surf-top" class="chip-inline" type="button">BONNET / ROOF</button>
+                <span id="g-guide" class="muted tiny"></span>
+              </div>
+              <div id="g-draw-wrap"></div>
+              <div id="g-tools">
+                <button class="chip-inline" data-tool="brush" type="button">BRUSH</button>
+                <button class="chip-inline" data-tool="eraser" type="button">ERASER</button>
+                <button class="chip-inline" data-tool="text" type="button">TEXT</button>
+                <button class="chip-inline" data-tool="star" type="button">STAR</button>
+                <button class="chip-inline" data-tool="heart" type="button">HEART</button>
+                <button class="chip-inline" data-tool="bolt" type="button">BOLT</button>
+                <button id="g-undo" class="chip-inline" type="button">UNDO</button>
+                <button id="g-clear" class="chip-inline" type="button">CLEAR</button>
+              </div>
+              <div class="g-row">
+                <div id="g-swatches"></div>
+                <input id="g-color" type="color" value="#ffffff" title="Any colour" />
+              </div>
+              <div class="g-row">
+                <label class="tiny muted" for="g-size">SIZE</label>
+                <input id="g-size" type="range" min="2" max="40" value="10" />
+                <label class="tiny muted" for="g-text">TEXT</label>
+                <input id="g-text" maxlength="14" value="42" spellcheck="false" />
+              </div>
+              <div class="muted tiny">Your drawing is shown to other players when they watch your replay or race your ghost. Keep it friendly.</div>
+            </div>
+          </div>
+        </div>
+        <div class="g-foot">
+          <span id="g-msg" class="tiny"></span>
+          <button id="g-save" class="btn primary" type="button">SAVE CAR</button>
+        </div>
+      </section>
+
       <section id="auth" class="panel hidden">
         <h2 id="auth-title">Sign in</h2>
         <p class="muted tiny">You need a free account to put your times on the worldwide leaderboard. Without one you can still race, but your times stay on this computer only.</p>
@@ -77,7 +131,11 @@
 
             <div id="account" class="account hidden">
               <span id="account-text" class="tiny"></span>
-              <button id="account-btn" class="chip-inline" type="button">SIGN IN</button>
+              <div id="coin-badge" class="coin-badge hidden"></div>
+              <div class="ghost-btns">
+                <button id="garage-btn" class="chip-inline" type="button">GARAGE: CUSTOMISE YOUR CAR</button>
+                <button id="account-btn" class="chip-inline" type="button">SIGN IN</button>
+              </div>
             </div>
 
             <label class="label" for="name-input" id="name-label">DRIVER NAME</label>
@@ -127,6 +185,7 @@
         <div id="finish-sub" class="sub"></div>
         <ul id="finish-laps"></ul>
         <div id="finish-rank" class="muted"></div>
+        <div id="finish-coins" class="coins-box hidden"></div>
         <div class="row">
           <button id="retry-btn" class="btn primary">RACE AGAIN <small>[R]</small></button>
           <button id="menu-btn" class="btn">MENU <small>[Esc]</small></button>

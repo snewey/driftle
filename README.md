@@ -100,3 +100,10 @@ only with Row Level Security turned on. The service role key must never be in th
 - Click any driver's name on the leaderboard to watch their best run, with the keys they pressed (W A S D and Space) lit up on screen. Controls: Pause (P), Speed (1x / 0.5x / 0.25x), Restart (R), Back (Esc).
 - Each best run stores its key presses (`daily_bests.inputs`, run-length encoded, about 1-4 KB). Runs set before this update have no key data, so they replay without the keys.
 - The same input record can later be re-simulated on a server to verify times (anti-cheat).
+
+## v0.6: Garage, Drift Coins and car drawing
+
+- **Drift Coins** (signed-in players only): +50 for finishing a race (first 10 paid finishes a day), +2 per drift boost (max 20 a race), +100 for your first PB of the day, +30 for each later improvement (max 5 a day), +50 for reaching #1 (once a day). Coins are worked out in the database (`submit_run`), not in the browser.
+- **Garage**: 5 cars, 16 paints, 7 boost-flame colours (blue, purple, rainbow...), exhausts, spoilers, wheels and underglow. All cosmetic. Prices live in `src/catalog.js` and are seeded into `shop_items` (migration `0004`). Buying and saving go through `buy_item` / `set_loadout`, which check you own the item.
+- **Draw on your car**: side and bonnet/roof canvases with brush, eraser, text and stamps. Saved as small PNGs with your loadout and shown to other players on your ghost and replay.
+- Dev preview without an account: `npm run dev`, open `/?mockgarage`.

@@ -7,6 +7,10 @@ import { makeMinimap, drawMinimap } from './minimap.js';
 import { GameAudio } from './audio.js';
 import { LocalBackend, getSavedName, saveName } from './backend.js';
 import { onlineAvailable, OnlineBackend, currentUser, onAuthChange, ensureProfile, signIn, signUp, signOut } from './online.js';
+import * as online from './online.js';
+import { initGarage, mockGarageApi } from './garage.js';
+import { loadDecal } from './car.js';
+import { DEFAULT_LOADOUT, cleanLoadout } from './catalog.js';
 
 const LAPS = 3;
 const $ = (id) => document.getElementById(id);
@@ -38,6 +42,43 @@ let lastCount = 0;
 let ghostOn = loadGhostPref(); // press G to turn your ghost off or on
 let opponent = null; // { runId, name, timeMs } when racing someone else's ghost; null = your own best
 let selected = null;
+// ---- car customisation ----
+let myLoadout = { ...DEFAULT_LOADOUT };
+let myDecals = null;
+let carOwner = 'me'; // whose car is on the renderer right now: 'me' or a user id (replays)
+let boostCount = 0;
+let garageUI = null;
+const carCache = new Map(); // userId -> { loadout, decals } (other drivers' cars)
+
+async function fetchCar(userId) {
+  if (!userId || !onlineAvailable) return { loadout: { ...DEFAULT_LOADOUT }, decals: null };
+  if (carCache.has(userId)) return carCache.get(userId);
+  let car = { loadout: { ...DEFAULT_LOADOUT }, decals: null };
+  try {
+    const row = await online.getLoadout(userId);
+    if (row) {
+      const [side, top] = await Promise.all([loadDecal(row.decal_side, 'side'), loadDecal(row.decal_top, 'top')]);
+      car = { loadout: cleanLoadout(row), decals: { side, top } };
+    }
+  } catch (err) {
+    console.error('Could not load car', err);
+  }
+  carCache.set(userId, car);
+  return car;
+}
+// online leaderboard run ids are the driver's user id
+const ownerId = (entry) => (reader().kind === 'online' ? entry.runId : null);
+function showMyCar() {
+  if (carOwner === 'me') return;
+  carOwner = 'me';
+  renderer.setCar(myLoadout, myDecals);
+}
+function setCoinBadge(n) {
+  const b = $('coin-badge');
+  if (n == null) return b.classList.add('hidden');
+  b.textContent = `◎ ${n} Drift Coins`;
+  b.classList.remove('hidden');
+}
 let cacheBoard = []; // leaderboard entry the player clicked
 
 function loadGhostPref() {
@@ -233,6 +274,8 @@ async function startRace() {
   sim = new Sim(track, LAPS);
   renderer.reset(sim);
   ghost = null;
+  boostCount = 0;
+  showMyCar();
   try {
     // Your own best is loaded automatically; a leaderboard ghost replaces it if you picked one.
     // The ghost is always loaded so G can switch it on mid-race; ghostOn only controls whether it shows.
@@ -241,6 +284,8 @@ async function startRace() {
       if (g && g.ghost) ghost = new GhostPlayer(unpackSamples(g.ghost), g.timeMs / 1000);
     }
     if (!ghost && pb && pb.ghost) ghost = new GhostPlayer(unpackSamples(pb.ghost), pb.timeMs / 1000);
+    // the ghost wears its owner's car (your own best = your current car)
+    if (ghost) renderer.setGhostCar(opponent && !(pb && opponent.runId === pb.runId) ? (await fetchCar(ownerId(opponent))).loadout : myLoadout);
   } catch (err) {
     console.error('Could not load ghost', err);
   }
@@ -257,6 +302,7 @@ async function startRace() {
 function toMenu() {
   state = 'menu';
   rp = null;
+  showMyCar();
   show('replay', false);
   sim = new Sim(track, LAPS);
   renderer.reset(sim);
@@ -271,6 +317,7 @@ function toMenu() {
 function handleEvents() {
   for (const e of sim.events.splice(0)) {
     if (e.type === 'boost') {
+      boostCount++;
       setBanner('DRIFT BOOST!', 900);
       audio.boost();
     } else if (e.type === 'crash') {
@@ -299,7 +346,7 @@ async function onFinish() {
   const wait = new Promise((r) => setTimeout(r, 900));
   let res = null;
   try {
-    res = await backend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData, inputs: inputsData });
+    res = await backend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData, inputs: inputsData, boosts: boostCount });
     if (backend.kind === 'online') await localBackend.submitRun({ day: dayKey, name: getSavedName(), timeMs, laps, ghost: ghostData, inputs: inputsData });
   } catch (err) {
     console.error('Could not save run', err);
@@ -331,6 +378,17 @@ async function onFinish() {
     li.textContent = `Lap ${i + 1}   ${fmt(l)}`;
     ul.appendChild(li);
   });
+  const cb = $('finish-coins');
+  if (account && res && res.coins) {
+    const c = res.coins;
+    const rows = [['Finished the race', c.finish], [`Drift boosts x${Math.min(boostCount, 20)}`, c.boosts], ['New personal best', c.pb], ['Top of the board', c.top]].filter((r) => r[1] > 0);
+    cb.innerHTML = `<b>+${c.total} Drift Coins</b>` + rows.map((r) => `<span>${r[0]} +${r[1]}</span>`).join('') + (c.total === 0 ? '<span>Daily coin limit reached. Back tomorrow!</span>' : '');
+    cb.classList.remove('hidden');
+    if (res.wallet != null) setCoinBadge(res.wallet);
+  } else if (!account) {
+    cb.textContent = 'Sign in to earn Drift Coins for every race and spend them in the garage.';
+    cb.classList.remove('hidden');
+  } else cb.classList.add('hidden');
   $('finish-rank').textContent = res && res.rank ? (backend.kind === 'online' ? `Rank #${res.rank} worldwide today` : `Rank #${res.rank} in your runs today`) : backend.kind === 'online' ? 'Could not reach the leaderboard. Check your connection.' : onlineAvailable ? 'This time was NOT posted. Go back to the menu and create a free account to join the worldwide leaderboard.' : '';
   setBanner('');
   show('finish', true);
@@ -419,6 +477,8 @@ function frame(now) {
 // ---- input ---------------------------------------------------------------
 window.addEventListener('keydown', (e) => {
   audio.unlock();
+  if (garageUI && garageUI.isOpen()) return;
+  if (!$('auth').classList.contains('hidden')) return;
   const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
   if (typing) {
     if (e.code === 'Enter' && state === 'menu') {
@@ -492,6 +552,12 @@ async function watchReplay(entry) {
     console.error('Could not load replay', err);
   }
   if (!g || !g.ghost) return alert('Could not load that replay. Check your connection and try again.');
+  const oid = ownerId(entry);
+  const theirs = !oid || (account && oid === account.user.id) ? null : await fetchCar(oid);
+  if (theirs) {
+    carOwner = oid;
+    renderer.setCar(theirs.loadout, theirs.decals);
+  } else showMyCar();
   const player = new GhostPlayer(unpackSamples(g.ghost), g.timeMs / 1000);
   rp = {
     name: entry.name,
@@ -555,6 +621,7 @@ function poseReplay(dt) {
   c.steer += (want - c.steer) * Math.min(1, dt * 9);
   c.beta = speed > 60 ? wrapA(Math.atan2(c.vy, c.vx) - c.a) : 0;
   const slip = Math.abs(c.beta);
+  c.boostT = speed > PHYS.maxSpeed * 1.01 ? 1 : 0;
   c.drifting = c.drifting ? slip > PHYS.driftExitSlip && speed > PHYS.driftExitSpeed : slip > PHYS.driftEnterSlip && speed > 150;
   // distance from the road centre, for skid marks
   const T = track;
@@ -661,7 +728,26 @@ function setAccount(user, name) {
   }
   opponent = null;
   selected = null;
+  myLoadout = { ...DEFAULT_LOADOUT };
+  myDecals = null;
+  carOwner = 'me';
+  renderer.setCar(myLoadout, null);
+  setCoinBadge(null);
+  if (account) loadMyGarage(user.id);
   refreshMenuData();
+}
+
+async function loadMyGarage(uid) {
+  try {
+    const [coins, car] = await Promise.all([online.getWallet(), fetchCar(uid)]);
+    if (!account || account.user.id !== uid) return;
+    myLoadout = car.loadout;
+    myDecals = car.decals;
+    if (carOwner === 'me') renderer.setCar(myLoadout, myDecals);
+    setCoinBadge(coins);
+  } catch (err) {
+    console.error('Could not load garage', err);
+  }
 }
 function setAuthMode(mode) {
   authMode = mode;
@@ -711,6 +797,26 @@ if (onlineAvailable) {
       $('auth-email').focus();
     }
   });
+  const dev = import.meta.env.DEV;
+  garageUI = initGarage({
+    api: { ...online, onCoins: (n) => setCoinBadge(n) },
+    onSaved: (final, decals) => {
+      myLoadout = final;
+      myDecals = decals;
+      carCache.delete(account && account.user.id);
+      carOwner = 'me';
+      renderer.setCar(myLoadout, myDecals);
+    },
+  });
+  $('garage-btn').addEventListener('click', () => {
+    if (!account) {
+      setAuthMode('in');
+      authMsg('Sign in to customise your car.', true);
+      $('auth').classList.remove('hidden');
+      return $('auth-email').focus();
+    }
+    garageUI.open(account.user.id);
+  });
   $('auth-switch').addEventListener('click', () => setAuthMode(authMode === 'in' ? 'up' : 'in'));
   $('auth-close').addEventListener('click', () => $('auth').classList.add('hidden'));
   $('auth-go').addEventListener('click', doAuth);
@@ -738,4 +844,20 @@ if (onlineAvailable) {
       }
     } else if (!u && account) setAccount(null);
   });
+}
+
+// Dev-only: `npm run dev` then open /?mockgarage to try the garage without an account or database.
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('mockgarage')) {
+  const mock = mockGarageApi();
+  garageUI = initGarage({
+    api: { ...mock, onCoins: (n) => setCoinBadge(n) },
+    onSaved: (final, decals) => {
+      myLoadout = final;
+      myDecals = decals;
+      renderer.setCar(myLoadout, myDecals);
+    },
+  });
+  $('account').classList.remove('hidden');
+  setCoinBadge(500);
+  $('garage-btn').addEventListener('click', () => garageUI.open('mock-user'));
 }

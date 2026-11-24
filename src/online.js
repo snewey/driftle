@@ -110,20 +110,65 @@ export class OnlineBackend {
     }));
   }
 
-  async submitRun({ day, timeMs, laps, ghost, inputs }) {
+  async submitRun({ day, timeMs, laps, ghost, inputs, boosts }) {
     const { data, error } = await supabase.rpc('submit_run', {
       p_day: day,
       p_time_ms: timeMs,
       p_laps: laps.map((l) => Math.round(l)),
       p_ghost: ghost,
       p_inputs: inputs || '',
+      p_boosts: boosts || 0,
     });
     if (error) throw error;
-    return { rank: data.rank, isPB: data.improved, runId: this.user.id };
+    return { rank: data.rank, isPB: data.improved, runId: this.user.id, coins: data.coins, wallet: data.wallet };
   }
 
   async getGhost(day, userId) {
     const { data } = await supabase.from('daily_bests').select('time_ms, ghost, inputs').eq('user_id', userId).eq('day', day).maybeSingle();
     return data ? { timeMs: data.time_ms, ghost: data.ghost, inputs: data.inputs, runId: userId } : null;
   }
+}
+
+// ---- Drift Coins, shop and garage -------------------------------------------------------
+// The server holds the real wallet and prices. These calls only ask it to do things.
+
+export async function getWallet() {
+  const { data } = await supabase.from('wallets').select('coins').maybeSingle();
+  return data ? data.coins : 0;
+}
+
+export async function getUnlocks() {
+  const { data } = await supabase.from('unlocks').select('item_id');
+  return (data || []).map((r) => r.item_id);
+}
+
+/** A driver's saved car (public, so other players can see it on ghosts and replays). */
+export async function getLoadout(userId) {
+  const { data } = await supabase
+    .from('loadouts')
+    .select('car, paint, flame, exhaust, spoiler, wheels, glow, decal_side, decal_top')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data || null;
+}
+
+export async function buyItem(itemId) {
+  const { data, error } = await supabase.rpc('buy_item', { p_item: itemId });
+  if (error) throw new Error(error.message);
+  return data; // { coins, item, already_owned }
+}
+
+export async function saveLoadout(l, sideUrl, topUrl) {
+  const { error } = await supabase.rpc('set_loadout', {
+    p_car: l.car,
+    p_paint: l.paint,
+    p_flame: l.flame,
+    p_exhaust: l.exhaust,
+    p_spoiler: l.spoiler,
+    p_wheels: l.wheels,
+    p_glow: l.glow,
+    p_side: sideUrl || '',
+    p_top: topUrl || '',
+  });
+  if (error) throw new Error(error.message);
 }

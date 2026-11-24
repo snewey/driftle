@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hashString, mulberry32 } from './rng.js';
 import { PHYS } from './sim.js';
+import { buildCar } from './car.js';
+import { DEFAULT_LOADOUT } from './catalog.js';
 
 // The sim works in a flat 2D plane (x, y, heading a). Here that maps onto the ground plane:
 //   world x = sim x, world z = sim y, world y = up, car forward = (cos a, 0, sin a).
@@ -146,31 +148,6 @@ function barkTexture() {
   return c;
 }
 
-function rimTexture() {
-  const c = makeCanvas(64, 64);
-  const g = c.getContext('2d');
-  g.fillStyle = '#17181c';
-  g.fillRect(0, 0, 64, 64);
-  g.strokeStyle = '#c9ced6';
-  g.lineWidth = 6;
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2;
-    g.beginPath();
-    g.moveTo(32, 32);
-    g.lineTo(32 + Math.cos(a) * 24, 32 + Math.sin(a) * 24);
-    g.stroke();
-  }
-  g.beginPath();
-  g.arc(32, 32, 26, 0, Math.PI * 2);
-  g.lineWidth = 3;
-  g.stroke();
-  g.fillStyle = '#c9ced6';
-  g.beginPath();
-  g.arc(32, 32, 6, 0, Math.PI * 2);
-  g.fill();
-  return c;
-}
-
 function checkerTexture() {
   const c = makeCanvas(32, 160);
   const g = c.getContext('2d');
@@ -293,83 +270,6 @@ function ribbon(track, off0, off1, y, texLen) {
   geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   geo.setIndex(idx);
   return geo;
-}
-
-function buildCar(bodyColor, ghost, rimMap) {
-  const root = new THREE.Group();
-  const body = new THREE.Group();
-  root.add(body);
-
-  const ghostMat = ghost
-    ? new THREE.MeshBasicMaterial({ color: 0x7ee8ff, transparent: true, opacity: 0.4, depthWrite: false })
-    : null;
-  const lambert = (color) => ghostMat || new THREE.MeshLambertMaterial({ color });
-  const basic = (color) => ghostMat || new THREE.MeshBasicMaterial({ color });
-  const add = (parent, w, h, d, x, y, z, mat) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.position.set(x, y, z);
-    m.castShadow = !ghost;
-    parent.add(m);
-    return m;
-  };
-
-  const paint = lambert(bodyColor);
-  const dark = lambert(0x15181f);
-  add(body, 56, 9, 28, 0, 10.5, 0, paint);
-  add(body, 22, 8, 22, -5, 19, 0, lambert(0x182433));
-  add(body, 20, 1.6, 20, -5, 23.4, 0, paint);
-  add(body, 4, 5, 30, 28, 8, 0, dark);
-  add(body, 4, 5, 30, -28, 8, 0, dark);
-  add(body, 7, 1.5, 32, -26, 22.5, 0, paint);
-  add(body, 2, 6, 2, -26, 19, 9, dark);
-  add(body, 2, 6, 2, -26, 19, -9, dark);
-  if (!ghost) add(body, 30, 0.4, 5, 12, 15.2, 0, basic(0xf4f4f4));
-  add(body, 1.5, 3, 5, 28.4, 12, 9, basic(0xfff2b0));
-  add(body, 1.5, 3, 5, 28.4, 12, -9, basic(0xfff2b0));
-  add(body, 1.5, 3, 6, -28.4, 12, 9, basic(0xff2b2b));
-  add(body, 1.5, 3, 6, -28.4, 12, -9, basic(0xff2b2b));
-
-  const wheelGeo = new THREE.CylinderGeometry(7, 7, 6, 18);
-  wheelGeo.rotateX(Math.PI / 2); // axle along the car's sideways (z) axis
-  const tire = ghost ? ghostMat : new THREE.MeshLambertMaterial({ color: 0x15161a });
-  const rim = ghost ? ghostMat : new THREE.MeshLambertMaterial({ map: rimMap });
-  const wheels = [];
-  const frontPivots = [];
-  for (const [x, z] of [[17, 15], [17, -15], [-17, 15], [-17, -15]]) {
-    const m = new THREE.Mesh(wheelGeo, [tire, rim, rim]);
-    m.castShadow = !ghost;
-    wheels.push(m);
-    if (x > 0) {
-      const pivot = new THREE.Group();
-      pivot.position.set(x, 7, z);
-      pivot.add(m);
-      body.add(pivot);
-      frontPivots.push(pivot);
-    } else {
-      m.position.set(x, 7, z);
-      body.add(m);
-    }
-  }
-
-  const flame = new THREE.Group();
-  if (!ghost) {
-    const outer = new THREE.MeshBasicMaterial({ color: 0xff9f43, transparent: true, opacity: 0.9 });
-    const inner = new THREE.MeshBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0.95 });
-    for (const z of [-9, 9]) {
-      const a = new THREE.ConeGeometry(4.5, 30, 8);
-      a.rotateZ(Math.PI / 2);
-      const m1 = new THREE.Mesh(a, outer);
-      m1.position.set(-44, 10, z);
-      const b = new THREE.ConeGeometry(2.4, 18, 8);
-      b.rotateZ(Math.PI / 2);
-      const m2 = new THREE.Mesh(b, inner);
-      m2.position.set(-38, 10, z);
-      flame.add(m1, m2);
-    }
-    flame.visible = false;
-    body.add(flame);
-  }
-  return { root, body, wheels, frontPivots, flame };
 }
 
 // ---- the renderer ----------------------------------------------------------
@@ -615,14 +515,42 @@ export class Renderer {
   }
 
   buildCars() {
-    const rim = this.tex(rimTexture(), { repeat: false });
-    this.car = buildCar(0xff3d71, false, rim);
-    this.car.root.position.y = ROAD_Y;
-    this.scene.add(this.car.root);
-    this.ghost = buildCar(0x7ee8ff, true, rim);
-    this.ghost.root.position.y = ROAD_Y;
+    this.loadout = { ...DEFAULT_LOADOUT };
+    this.decals = null;
+    this.car = this.makeCarObject(this.loadout, false, null);
+    this.ghostLoadout = { ...DEFAULT_LOADOUT };
+    this.ghost = this.makeCarObject(this.ghostLoadout, true, null);
     this.ghost.root.visible = false;
-    this.scene.add(this.ghost.root);
+  }
+
+  makeCarObject(loadout, ghost, decals) {
+    const car = buildCar(loadout, { ghost, decals });
+    car.root.position.y = ROAD_Y;
+    this.scene.add(car.root);
+    return car;
+  }
+
+  /** Swap the player's car (their own, or another driver's while watching a replay). */
+  setCar(loadout, decals) {
+    this.loadout = loadout;
+    this.decals = decals || null;
+    const old = this.car;
+    this.car = this.makeCarObject(loadout, false, decals);
+    this.scene.remove(old.root);
+    old.dispose();
+  }
+
+  /** Swap the see-through ghost car's body to match the driver whose ghost it is. */
+  setGhostCar(loadout) {
+    const same = this.ghostLoadout && ['car', 'spoiler', 'exhaust'].every((k) => this.ghostLoadout[k] === loadout[k]);
+    if (same) return;
+    this.ghostLoadout = loadout;
+    const old = this.ghost;
+    const vis = old.root.visible;
+    this.ghost = this.makeCarObject(loadout, true, null);
+    this.ghost.root.visible = vis;
+    this.scene.remove(old.root);
+    old.dispose();
   }
 
   buildEffects() {
@@ -805,9 +733,8 @@ export class Renderer {
     const sf = Math.min(1, Math.hypot(c.vx, c.vy) / PHYS.maxSpeed);
     const roll = -c.steer * sf * 0.07 + c.beta * 0.04;
     this.poseCar(this.car, c.x, c.y, c.a, c.steer, roll, this.spin);
-    const flame = this.car.flame;
-    flame.visible = c.boostT > 0;
-    if (flame.visible) flame.scale.set(0.8 + Math.random() * 0.5, 1, 1);
+    this.car.update(performance.now() / 1000);
+    this.car.setBoost(c.boostT > 0);
 
     if (ghostPose) {
       this.ghost.root.visible = true;
