@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { KINDS, CATALOG, DEFAULT_LOADOUT, allItems, itemById, cleanLoadout, shopSeedSQL } from '../src/catalog.js';
+import { KINDS, CATALOG, DEFAULT_LOADOUT, allItems, itemById, cleanLoadout, shopSeedSQL, isFree } from '../src/catalog.js';
 
 test('item ids are unique and costs are whole numbers >= 0', () => {
   const ids = allItems().map((i) => i.id);
@@ -17,7 +17,7 @@ test('default loadout is made of free items of the right kind', () => {
 });
 
 test('every kind has at least one free item', () => {
-  for (const k of KINDS) assert.ok(CATALOG[k].some((i) => i.cost === 0), k);
+  for (const k of KINDS) assert.ok(CATALOG[k].some(isFree), k);
 });
 
 test('cleanLoadout falls back to defaults for junk', () => {
@@ -30,6 +30,18 @@ test('cleanLoadout falls back to defaults for junk', () => {
 
 test('migration seed matches the catalog', () => {
   const sql = readFileSync(new URL('../supabase/migrations/0004_garage_and_coins.sql', import.meta.url), 'utf8');
-  for (const i of allItems()) assert.ok(sql.includes(`('${i.id}', '${i.kind}', '${i.name.replace(/'/g, "''")}', ${i.cost})`), i.id);
+  const top3 = readFileSync(new URL('../supabase/migrations/0006_top3_rewards.sql', import.meta.url), 'utf8');
+  for (const i of allItems()) {
+    if (i.top3) assert.ok(top3.includes(`'${i.id}'`), i.id + ' must be reward-only in 0006');
+    else assert.ok(sql.includes(`('${i.id}', '${i.kind}', '${i.name.replace(/'/g, "''")}', ${i.cost})`), i.id);
+  }
   assert.ok(shopSeedSQL().includes('on conflict'));
+});
+
+test('rainbow items are top-3 rewards, not for sale', () => {
+  for (const id of ['flame_rainbow', 'glow_rainbow']) {
+    const it = itemById(id);
+    assert.ok(it.top3 && !isFree(it), id);
+  }
+  assert.ok(isFree(itemById('flame_orange')));
 });

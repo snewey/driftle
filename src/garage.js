@@ -1,4 +1,4 @@
-import { CATALOG, KINDS, KIND_LABEL, DEFAULT_LOADOUT, GLOW_COLORS, itemById, cleanLoadout } from './catalog.js';
+import { CATALOG, KINDS, KIND_LABEL, DEFAULT_LOADOUT, GLOW_COLORS, TOP3_HINT, isFree, itemById, cleanLoadout } from './catalog.js';
 import { GaragePreview } from './garage-preview.js';
 import { blankDecals, loadDecal, decalIsBlank } from './car.js';
 
@@ -62,7 +62,7 @@ export function initGarage({ api, onSaved }) {
 
   const isOwned = (id) => {
     const it = itemById(id);
-    return !!it && (it.cost === 0 || owned.has(id));
+    return !!it && (isFree(it) || owned.has(id));
   };
   const msg = (t, bad = false) => {
     $('g-msg').textContent = t;
@@ -112,8 +112,18 @@ export function initGarage({ api, onSaved }) {
       const card = document.createElement('div');
       card.className = 'g-card' + (on ? ' on' : '') + (have ? '' : ' locked');
       card.tabIndex = 0;
-      const status = on ? 'ON YOUR CAR' : have ? (it.cost === 0 ? 'FREE' : 'OWNED') : '';
+      const status = on ? 'ON YOUR CAR' : have ? (isFree(it) ? 'FREE' : it.top3 ? 'TOP 3 REWARD' : 'OWNED') : '';
       card.innerHTML = `${cardSwatch(tab, it)}<div class="nm">${it.name}</div>${it.blurb ? `<div class="bl">${it.blurb}</div>` : ''}<div class="st">${status}</div>`;
+      if (!have && it.top3) {
+        const note = document.createElement('div');
+        note.className = 'g-reward';
+        note.textContent = '🏆 TOP 3 REWARD';
+        note.title = TOP3_HINT;
+        card.appendChild(note);
+        card.addEventListener('click', () => msg(`${it.name}: ${TOP3_HINT}`));
+        grid.appendChild(card);
+        continue;
+      }
       if (!have) {
         const buy = document.createElement('button');
         buy.type = 'button';
@@ -146,6 +156,7 @@ export function initGarage({ api, onSaved }) {
 
   async function buyItem(it) {
     if (busy) return;
+    if (it.top3) return msg(TOP3_HINT, true);
     if (coins < it.cost) return msg(`You need ◎ ${it.cost - coins} more Drift Coins. Win them by finishing races.`, true);
     busy = true;
     try {
@@ -412,6 +423,7 @@ export function mockGarageApi() {
     getLoadout: async () => row,
     buyItem: async (id) => {
       const it = itemById(id);
+      if (it.top3) throw new Error('this item is a reward for finishing in the top 3');
       if (coins < it.cost) throw new Error('not enough Drift Coins');
       coins -= it.cost;
       unlocked.add(id);

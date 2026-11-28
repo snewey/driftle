@@ -10,7 +10,7 @@ import { onlineAvailable, OnlineBackend, currentUser, onAuthChange, ensureProfil
 import * as online from './online.js';
 import { initGarage, mockGarageApi } from './garage.js';
 import { loadDecal } from './car.js';
-import { DEFAULT_LOADOUT, cleanLoadout } from './catalog.js';
+import { DEFAULT_LOADOUT, cleanLoadout, itemById } from './catalog.js';
 import { carThumb } from './thumbs.js';
 import { boostTimeline } from './replay.js';
 
@@ -436,7 +436,8 @@ async function onFinish() {
     cb.innerHTML =
       rows.map((r, i) => `<div class="coin-line" style="animation-delay:${i * 0.22}s"><span>${r[0]}</span><b class="gold">+${r[1]} ${COIN}</b></div>`).join('') +
       `<div class="coin-total" style="animation-delay:${rows.length * 0.22 + 0.1}s"><span>TOTAL</span><b class="gold">+${c.total} ${COIN}</b></div>` +
-      (c.total === 0 ? '<div class="muted tiny">Daily coin limit reached. Back tomorrow!</div>' : '');
+      (c.total === 0 ? '<div class="muted tiny">Daily coin limit reached. Back tomorrow!</div>' : '') +
+      (res.unlocked && res.unlocked.length ? `<div class="unlock-line">🏆 TOP 3! Unlocked: ${res.unlocked.map((id) => (itemById(id) || { name: id }).name).join(', ')}. Equip them in the garage.</div>` : '');
     cb.classList.remove('hidden');
     if (res.wallet != null) setCoinBadge(res.wallet);
   } else if (!account) {
@@ -962,4 +963,7 @@ function openArchive() {
 }
 
 // Dev-only helper for checking replays: jump to a moment (seconds).
-if (import.meta.env.DEV) window.__seek = (t) => rp && (rp.t = t);
+if (import.meta.env.DEV) {
+  window.__seek = (t) => rp && (rp.t = t);
+  window.__setCar = (l, d) => renderer.setCar(cleanLoadout(l), d || null);
+}

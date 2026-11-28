@@ -221,6 +221,7 @@ kbd { background: #1a2231; border: 1px solid var(--line); border-bottom-width: 2
 .g-card .bl { font-size:11px; color:var(--muted); }
 .g-card .st { font-size:10px; letter-spacing:.1em; color:var(--accent2); min-height:12px; }
 .g-buy { margin-top:auto; border:0; border-radius:6px; padding:6px 8px; background:#ffd23b; color:#1a1400; font:800 11px/1 inherit; cursor:pointer; }
+.g-reward { margin-top:auto; padding:6px 8px; border-radius:6px; border:1px dashed #ffd23b88; color:#ffd23b; font:800 11px/1.2 inherit; text-align:center; letter-spacing:.06em; }
 .g-buy.poor { background:#4a4630; color:#bba96a; }
 #g-draw { display:flex; flex-direction:column; gap:8px; }
 .g-surf { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
@@ -275,3 +276,5 @@ kbd { background: #1a2231; border: 1px solid var(--line); border-bottom-width: 2
 #archive-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px; max-height:60vh; overflow-y:auto; }
 #menu-home { margin-bottom:8px; }
 @media (max-width:760px) { .home-grid { grid-template-columns:1fr; } }
+
+.unlock-line { margin-top:8px; padding:8px 10px; border-radius:8px; background:linear-gradient(90deg,#ff4fa355,#ffd23b55,#38e07a55,#2f7bff55); font-weight:800; font-size:13px; }

@@ -50,7 +50,7 @@ export const CATALOG = {
     item('flame_green', 'Toxic Green', 250, { outer: 0x38e07a, inner: 0xdfffe9 }),
     item('flame_pink', 'Hot Pink Flame', 250, { outer: 0xff4fa3, inner: 0xffd6ec }),
     item('flame_white', 'White Hot', 350, { outer: 0xcfe9ff, inner: 0xffffff }),
-    item('flame_rainbow', 'Rainbow', 600, { outer: 0xff4fa3, inner: 0xffffff, rainbow: true }),
+    item('flame_rainbow', 'Rainbow', 0, { outer: 0xff4fa3, inner: 0xffffff, rainbow: true, top3: true }),
   ],
   exhaust: [
     item('exh_stock', 'Stock Pipes', 0),
@@ -83,9 +83,14 @@ export const CATALOG = {
     item('glow_purple', 'Purple Glow', 200),
     item('glow_green', 'Green Glow', 200),
     item('glow_red', 'Red Glow', 200),
-    item('glow_rainbow', 'Rainbow Glow', 500),
+    item('glow_rainbow', 'Rainbow Glow', 0, { top3: true }),
   ],
 };
+
+// Reward items: not for sale. Unlocked by finishing in the top 3 on a live daily board.
+export const TOP3_HINT = 'Finish in the top 3 on any day to unlock. Not for sale.';
+/** True when everyone owns the item from the start. */
+export const isFree = (it) => it.cost === 0 && !it.top3;
 
 export const GLOW_COLORS = {
   glow_white: 0xdff3ff,
@@ -130,5 +135,5 @@ export function cleanLoadout(l) {
 /** SQL for the shop_items table, so the database prices always come from this one list. */
 export function shopSeedSQL() {
   const rows = allItems().map((i) => `  ('${i.id}', '${i.kind}', '${i.name.replace(/'/g, "''")}', ${i.cost})`);
-  return `insert into public.shop_items (id, kind, name, cost) values\n${rows.join(',\n')}\non conflict (id) do update set kind = excluded.kind, name = excluded.name, cost = excluded.cost;`;
+  return `insert into public.shop_items (id, kind, name, cost) values\n${rows.join(',\n')}\non conflict (id) do update set kind = excluded.kind, name = excluded.name, cost = excluded.cost;\n-- reward-only items:\nupdate public.shop_items set top3_only = true where id in (${allItems().filter((i) => i.top3).map((i) => `'${i.id}'`).join(', ')});`;
 }

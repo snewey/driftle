@@ -121,7 +121,7 @@ export class OnlineBackend {
       p_boosts: boosts || 0,
     });
     if (error) throw error;
-    return { rank: data.rank, isPB: data.improved, runId: this.user.id, coins: data.coins, wallet: data.wallet };
+    return { rank: data.rank, isPB: data.improved, runId: this.user.id, coins: data.coins, wallet: data.wallet, unlocked: data.unlocked || [] };
   }
 
   async getGhost(day, userId) {
