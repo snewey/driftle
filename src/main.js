@@ -436,10 +436,10 @@ async function onFinish() {
     cb.innerHTML =
       rows.map((r, i) => `<div class="coin-line" style="animation-delay:${i * 0.22}s"><span>${r[0]}</span><b class="gold">+${r[1]} ${COIN}</b></div>`).join('') +
       `<div class="coin-total" style="animation-delay:${rows.length * 0.22 + 0.1}s"><span>TOTAL</span><b class="gold">+${c.total} ${COIN}</b></div>` +
-      (c.total === 0 ? '<div class="muted tiny">Daily coin limit reached. Back tomorrow!</div>' : '') +
-      (res.unlocked && res.unlocked.length ? `<div class="unlock-line">🏆 TOP 3! Unlocked: ${res.unlocked.map((id) => (itemById(id) || { name: id }).name).join(', ')}. Equip them in the garage.</div>` : '');
+      (c.total === 0 ? '<div class="muted tiny">Daily coin limit reached. Back tomorrow!</div>' : '');
     cb.classList.remove('hidden');
     if (res.wallet != null) setCoinBadge(res.wallet);
+    if (res.rank <= 3) cb.insertAdjacentHTML('beforeend', '<div class="unlock-line">🏆 You are in the top 3! Still there when the day ends (midnight UTC)? You unlock the Rainbow flame and glow.</div>');
   } else if (!account) {
     cb.textContent = 'Sign in to earn Drift Coins for every race and spend them in the garage.';
     cb.classList.remove('hidden');

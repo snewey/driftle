@@ -121,7 +121,7 @@ export class OnlineBackend {
       p_boosts: boosts || 0,
     });
     if (error) throw error;
-    return { rank: data.rank, isPB: data.improved, runId: this.user.id, coins: data.coins, wallet: data.wallet, unlocked: data.unlocked || [] };
+    return { rank: data.rank, isPB: data.improved, runId: this.user.id, coins: data.coins, wallet: data.wallet };
   }
 
   async getGhost(day, userId) {
@@ -136,6 +136,13 @@ export class OnlineBackend {
 export async function getWallet() {
   const { data } = await supabase.from('wallets').select('coins').maybeSingle();
   return data ? data.coins : 0;
+}
+
+/** Hands out the rainbow rewards if you finished top 3 on a day that has now closed. Returns any newly unlocked item ids. */
+export async function claimTop3() {
+  const { data, error } = await supabase.rpc('claim_top3');
+  if (error) return [];
+  return data || [];
 }
 
 export async function getUnlocks() {

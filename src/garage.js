@@ -349,6 +349,7 @@ export function initGarage({ api, onSaved }) {
     msg('Loading your garage...');
     preview.start();
     try {
+      const fresh = api.claimTop3 ? await api.claimTop3().catch(() => []) : [];
       const [c, unl, row] = await Promise.all([api.getWallet(), api.getUnlocks(), api.getLoadout(uid)]);
       owned = new Set(unl);
       setCoins(c);
@@ -364,7 +365,8 @@ export function initGarage({ api, onSaved }) {
       renderTabs();
       renderTools();
       renderBody();
-      msg('Pick a part to try it on. Free parts are yours already; buy the rest with Drift Coins.');
+      if (fresh.length) msg(`🏆 You finished in the official top 3! Unlocked: ${fresh.map((id) => itemById(id).name).join(' and ')}.`);
+      else msg('Pick a part to try it on. Free parts are yours already; buy the rest with Drift Coins.');
     } catch (e) {
       msg('Could not load your garage: ' + (e.message || e), true);
     }

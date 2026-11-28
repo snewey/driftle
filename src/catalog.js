@@ -88,7 +88,7 @@ export const CATALOG = {
 };
 
 // Reward items: not for sale. Unlocked by finishing in the top 3 on a live daily board.
-export const TOP3_HINT = 'Finish in the top 3 on any day to unlock. Not for sale.';
+export const TOP3_HINT = 'Finish in the official top 3 when a day ends (midnight UTC) to unlock. Not for sale.';
 /** True when everyone owns the item from the start. */
 export const isFree = (it) => it.cost === 0 && !it.top3;
 
