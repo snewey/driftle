@@ -31,9 +31,13 @@ test('cleanLoadout falls back to defaults for junk', () => {
 test('migration seed matches the catalog', () => {
   const sql = readFileSync(new URL('../supabase/migrations/0004_garage_and_coins.sql', import.meta.url), 'utf8');
   const top3 = readFileSync(new URL('../supabase/migrations/0006_top3_rewards.sql', import.meta.url), 'utf8');
+  const paints = readFileSync(new URL('../supabase/migrations/0009_more_paints.sql', import.meta.url), 'utf8');
   for (const i of allItems()) {
     if (i.top3) assert.ok(top3.includes(`'${i.id}'`), i.id + ' must be reward-only in 0006');
-    else assert.ok(sql.includes(`('${i.id}', '${i.kind}', '${i.name.replace(/'/g, "''")}', ${i.cost})`), i.id);
+    else {
+      const row = `('${i.id}', '${i.kind}', '${i.name.replace(/'/g, "''")}', ${i.cost})`;
+      assert.ok(sql.includes(row) || paints.includes(row), i.id);
+    }
   }
   assert.ok(shopSeedSQL().includes('on conflict'));
 });

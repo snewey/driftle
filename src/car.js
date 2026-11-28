@@ -492,7 +492,6 @@ export function buildCar(loadoutIn, { ghost = false, decals = null } = {}) {
     decalTex,
     /** Call once per frame. t is seconds. */
     update(t) {
-      if (paintItem.finish === 'shift' && !ghost) paintMat.color.copy(tmp.setHSL((t * 0.12) % 1, 0.85, 0.55));
       if (flameItem.rainbow) {
         outerMat.color.copy(tmp.setHSL((t * 1.1) % 1, 1, 0.55));
         innerMat.color.copy(tmp.setHSL(((t * 1.1) + 0.12) % 1, 1, 0.85));
