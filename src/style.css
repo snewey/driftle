@@ -278,3 +278,8 @@ kbd { background: #1a2231; border: 1px solid var(--line); border-bottom-width: 2
 @media (max-width:760px) { .home-grid { grid-template-columns:1fr; } }
 
 .unlock-line { margin-top:8px; padding:8px 10px; border-radius:8px; background:linear-gradient(90deg,#ff4fa355,#ffd23b55,#38e07a55,#2f7bff55); font-weight:800; font-size:13px; }
+
+.name-row { display:flex; gap:8px; align-items:center; }
+.name-row input { flex:1; }
+#name-msg { min-height:14px; margin-top:4px; }
+#name-msg.warn { color:#ff8a8a; }

@@ -315,8 +315,10 @@ async function startRace() {
   starting = true;
   audio.unlock();
   lastCount = 0;
-  saveName(cleanName($('name-input').value));
-  $('name-input').value = getSavedName();
+  if (!account) {
+    saveName(cleanName($('name-input').value));
+    $('name-input').value = getSavedName();
+  } else $('name-input').value = account.name;
   sim = new Sim(track, LAPS);
   renderer.reset(sim);
   ghost = null;
@@ -774,8 +776,8 @@ function setAccount(user, name) {
   const ni = $('name-input');
   if (account) {
     ni.value = name;
-    ni.disabled = true;
-    $('name-label').textContent = 'DRIVER NAME (YOURS ONLY)';
+    ni.disabled = false;
+    $('name-label').textContent = 'DRIVER NAME (YOU CAN CHANGE IT ONCE A WEEK)';
     $('account-text').textContent = `Signed in as ${name}. Your times count on the worldwide board.`;
     $('account-text').classList.remove('warn');
     $('account-btn').textContent = 'SIGN OUT';
@@ -783,6 +785,8 @@ function setAccount(user, name) {
   } else {
     ni.disabled = false;
     ni.value = getSavedName();
+    $('name-save').classList.add('hidden');
+    $('name-msg').textContent = '';
     $('name-label').textContent = 'GUEST NAME (NOT POSTED ONLINE)';
     $('account-text').textContent = 'Playing as a guest. Your times are NOT on the worldwide leaderboard. Create a free account to post them.';
     $('account-text').classList.add('warn');
@@ -967,3 +971,36 @@ if (import.meta.env.DEV) {
   window.__seek = (t) => rp && (rp.t = t);
   window.__setCar = (l, d) => renderer.setCar(cleanLoadout(l), d || null);
 }
+
+// ---- changing your driver name (signed in) -------------------------------------
+function nameMsg(t, bad = false) {
+  $('name-msg').textContent = t;
+  $('name-msg').classList.toggle('warn', bad);
+}
+$('name-input').addEventListener('input', () => {
+  if (account) $('name-save').classList.toggle('hidden', $('name-input').value.trim() === account.name);
+});
+async function saveDriverName() {
+  if (!account) return;
+  const wanted = $('name-input').value.trim();
+  if (wanted === account.name) return;
+  $('name-save').disabled = true;
+  nameMsg('Saving...');
+  const r = await online.renameDriver(wanted);
+  $('name-save').disabled = false;
+  if (r.error) return nameMsg(r.error, true);
+  account.name = r.name;
+  backend.name = r.name;
+  $('name-input').value = r.name;
+  $('name-save').classList.add('hidden');
+  $('account-text').textContent = `Signed in as ${r.name}. Your times count on the worldwide board.`;
+  nameMsg('Name changed! It shows on the leaderboard now.');
+  refreshMenuData();
+}
+$('name-save').addEventListener('click', saveDriverName);
+$('name-input').addEventListener('keydown', (e) => {
+  if (e.code === 'Enter' && account) {
+    e.stopPropagation();
+    saveDriverName();
+  }
+});

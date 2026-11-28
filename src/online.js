@@ -138,6 +138,15 @@ export async function getWallet() {
   return data ? data.coins : 0;
 }
 
+/** Changes your driver name (server checks: unique, valid, once every 7 days). Returns { name } or { error }. */
+export async function renameDriver(name) {
+  const clean = String(name || '').trim();
+  if (!NAME_OK.test(clean)) return { error: 'Driver name: 2-16 letters, numbers, spaces, - or _.' };
+  const { data, error } = await supabase.rpc('rename_driver', { p_name: clean });
+  if (error) return { error: error.message };
+  return { name: data.name, changed: data.changed };
+}
+
 /** Hands out the rainbow rewards if you finished top 3 on a day that has now closed. Returns any newly unlocked item ids. */
 export async function claimTop3() {
   const { data, error } = await supabase.rpc('claim_top3');

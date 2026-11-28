@@ -166,7 +166,8 @@
             <div class="muted" id="reset-line">New track in <b id="reset-timer">--:--:--</b></div>
 
             <label class="label" for="name-input" id="name-label">DRIVER NAME</label>
-            <input id="name-input" maxlength="16" autocomplete="off" spellcheck="false" />
+            <div class="name-row"><input id="name-input" maxlength="16" autocomplete="off" spellcheck="false" /><button id="name-save" class="chip-inline hidden" type="button">SAVE NAME</button></div>
+            <div id="name-msg" class="muted tiny"></div>
 
             <div class="label">GHOST</div>
             <div id="ghost-row">
