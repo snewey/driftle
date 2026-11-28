@@ -5,7 +5,11 @@ import { cleanLoadout, itemById, GLOW_COLORS } from './catalog.js';
 // underglow) plus the player's two drawings. Browser only. Every body keeps the same wheel
 // positions and size so cars only differ in looks, never in how they drive or collide.
 
-export const DECAL_SIZE = { side: [512, 192], top: [256, 448] };
+// The drawing is a grid of square cells, one world unit each: the sides are 56 x 21 cells, the
+// bonnet/roof/boot 32 x 56. Each cell is CELL pixels in the saved picture (kept crisp, no smoothing).
+export const CELL = 8;
+export const DECAL_CELLS = { side: [56, 21], top: [32, 56] };
+export const DECAL_SIZE = { side: [56 * CELL, 21 * CELL], top: [32 * CELL, 56 * CELL] };
 // The drawings are wrapped onto the painted panels: "side" covers both flanks (mirrored so writing
 // reads correctly on each side), "top" covers bonnet, roof and boot.
 const SX0 = -28;
@@ -133,7 +137,7 @@ function glowTexture() {
 
 // ---- paint with the drawings on top ------------------------------------------
 
-function paintMaterial(item, decalTex) {
+function paintMaterial(item, decalTex, gridU) {
   const color = item.color;
   let m;
   if (item.finish === 'matte') m = new THREE.MeshLambertMaterial({ color });
@@ -143,14 +147,17 @@ function paintMaterial(item, decalTex) {
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uSide = { value: decalTex.side };
     shader.uniforms.uTop = { value: decalTex.top };
+    shader.uniforms.uGrid = gridU;
+    shader.uniforms.uSideCells = { value: new THREE.Vector2(...DECAL_CELLS.side) };
+    shader.uniforms.uTopCells = { value: new THREE.Vector2(...DECAL_CELLS.top) };
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 aDecal;\nvarying vec3 vDecal;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDecal = aDecal;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D uSide;\nuniform sampler2D uTop;\nvarying vec3 vDecal;')
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uSide;\nuniform sampler2D uTop;\nuniform float uGrid;\nuniform vec2 uSideCells;\nuniform vec2 uTopCells;\nvarying vec3 vDecal;')
       .replace(
         '#include <color_fragment>',
-        '#include <color_fragment>\nif (vDecal.z < 1.5) { vec4 dc = vDecal.z < 0.5 ? texture2D(uSide, vDecal.xy) : texture2D(uTop, vDecal.xy); diffuseColor.rgb = mix(diffuseColor.rgb, dc.rgb, dc.a); }'
+        '#include <color_fragment>\nif (vDecal.z < 1.5) { vec4 dc = vDecal.z < 0.5 ? texture2D(uSide, vDecal.xy) : texture2D(uTop, vDecal.xy); diffuseColor.rgb = mix(diffuseColor.rgb, dc.rgb, dc.a); vec2 cells = vDecal.z < 0.5 ? uSideCells : uTopCells; vec2 gf = abs(fract(vDecal.xy * cells) - 0.5); float gl = step(0.455, max(gf.x, gf.y)); diffuseColor.rgb *= 1.0 - 0.3 * uGrid * gl; }'
       );
   };
   m.customProgramCacheKey = () => 'driftle-decal-' + m.type;
@@ -368,14 +375,18 @@ export function buildCar(loadoutIn, { ghost = false, decals = null } = {}) {
   for (const w of ['side', 'top']) {
     const t = new THREE.CanvasTexture(decalCanvases[w]);
     t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 4;
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestFilter;
+    t.generateMipmaps = false;
     t.needsUpdate = true;
     decalTex[w] = t;
   }
 
   const ghostMat = ghost ? new THREE.MeshBasicMaterial({ color: 0x7ee8ff, transparent: true, opacity: 0.4, depthWrite: false }) : null;
   const paintItem = itemById(loadout.paint);
-  const paintMat = ghostMat || paintMaterial(paintItem, decalTex);
+  const gridU = { value: 0 };
+  const paintMeshes = [];
+  const paintMat = ghostMat || paintMaterial(paintItem, decalTex, gridU);
   const lambert = (c) => ghostMat || new THREE.MeshLambertMaterial({ color: c });
   const darkMat = lambert(0x15181f);
   const glassMat = lambert(0x182433);
@@ -397,7 +408,10 @@ export function buildCar(loadoutIn, { ghost = false, decals = null } = {}) {
     },
     paint(w, h, d, x, y, z) {
       const m = k.box(paintMat, w, h, d, x, y, z);
-      if (!ghost) addDecalCoords(m);
+      if (!ghost) {
+        addDecalCoords(m);
+        paintMeshes.push(m);
+      }
       return m;
     },
     dark: (w, h, d, x, y, z) => k.box(darkMat, w, h, d, x, y, z),
@@ -508,6 +522,11 @@ export function buildCar(loadoutIn, { ghost = false, decals = null } = {}) {
         if (g.userData.up) g.scale.set(1, s, 1);
         else g.scale.set(s, g.userData.base, g.userData.base);
       }
+    },
+    paintMeshes,
+    /** Shows the square grid on the paintable panels (garage drawing mode). */
+    setGrid(on) {
+      gridU.value = on ? 1 : 0;
     },
     markDecalsChanged() {
       decalTex.side.needsUpdate = true;

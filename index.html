@@ -51,45 +51,52 @@
           <div id="g-coins" class="g-coins">◎ 0</div>
           <button id="g-close" class="chip-inline" type="button">CLOSE</button>
         </div>
-        <div class="g-body">
+        <div class="g-body" id="g-body">
           <div class="g-left">
             <canvas id="g-canvas"></canvas>
             <div class="ghost-btns">
               <button id="g-flame" class="chip-inline" type="button" data-on="0">BOOST FLAMES: OFF</button>
             </div>
-            <div class="muted tiny">Drag the car to spin it. Everything here is for looks only: every car drives the same.</div>
+            <div class="muted tiny">Drag the car to spin it (scroll to zoom while drawing). Everything here is for looks only: every car drives the same.</div>
           </div>
           <div class="g-right">
             <div id="g-tabs"></div>
             <div id="g-items"></div>
             <div id="g-draw" class="hidden">
-              <div class="g-surf">
-                <button id="g-surf-side" class="chip-inline on" type="button">SIDES</button>
-                <button id="g-surf-top" class="chip-inline" type="button">BONNET / ROOF</button>
-                <span id="g-guide" class="muted tiny"></span>
+              <div class="label">VIEW</div>
+              <div id="g-views" class="g-btnrow">
+                <button class="chip-inline" data-view="right" type="button">RIGHT</button>
+                <button class="chip-inline" data-view="left" type="button">LEFT</button>
+                <button class="chip-inline" data-view="front" type="button">FRONT</button>
+                <button class="chip-inline" data-view="back" type="button">BACK</button>
+                <button class="chip-inline" data-view="top" type="button">TOP</button>
+                <button id="g-turn-l" class="chip-inline" type="button" title="Turn left">⟲</button>
+                <button id="g-turn-r" class="chip-inline" type="button" title="Turn right">⟳</button>
+                <button id="g-zoom-in" class="chip-inline" type="button" title="Zoom in">＋</button>
+                <button id="g-zoom-out" class="chip-inline" type="button" title="Zoom out">－</button>
               </div>
-              <div id="g-draw-wrap"></div>
-              <div id="g-tools">
-                <button class="chip-inline" data-tool="brush" type="button">BRUSH</button>
-                <button class="chip-inline" data-tool="eraser" type="button">ERASER</button>
-                <button class="chip-inline" data-tool="text" type="button">TEXT</button>
-                <button class="chip-inline" data-tool="star" type="button">STAR</button>
-                <button class="chip-inline" data-tool="heart" type="button">HEART</button>
-                <button class="chip-inline" data-tool="bolt" type="button">BOLT</button>
+              <div class="label">TOOL</div>
+              <div id="g-tools" class="g-btnrow">
+                <button class="chip-inline" data-tool="paint" type="button">PAINT</button>
+                <button class="chip-inline" data-tool="erase" type="button">ERASE</button>
+                <button class="chip-inline" data-tool="fill" type="button">FILL</button>
+                <button class="chip-inline" data-tool="pick" type="button">PICK COLOUR</button>
+                <button class="chip-inline" data-tool="turn" type="button">DRAG TO TURN</button>
                 <button id="g-undo" class="chip-inline" type="button">UNDO</button>
-                <button id="g-clear" class="chip-inline" type="button">CLEAR</button>
+                <button id="g-clear" class="chip-inline" type="button">CLEAR ALL</button>
               </div>
+              <div class="label">BRUSH</div>
+              <div id="g-sizes" class="g-btnrow">
+                <button class="chip-inline" data-size="1" type="button">1 SQUARE</button>
+                <button class="chip-inline" data-size="2" type="button">2 x 2</button>
+                <button class="chip-inline" data-size="3" type="button">3 x 3</button>
+              </div>
+              <div class="label">COLOUR</div>
               <div class="g-row">
                 <div id="g-swatches"></div>
-                <input id="g-color" type="color" value="#ffffff" title="Any colour" />
+                <input id="g-color" type="color" value="#ff3d71" title="Any colour" />
               </div>
-              <div class="g-row">
-                <label class="tiny muted" for="g-size">SIZE</label>
-                <input id="g-size" type="range" min="2" max="40" value="10" />
-                <label class="tiny muted" for="g-text">TEXT</label>
-                <input id="g-text" maxlength="14" value="42" spellcheck="false" />
-              </div>
-              <div class="muted tiny">Your drawing is shown to other players when they watch your replay or race your ghost. Keep it friendly.</div>
+              <div class="muted tiny">Your design shows on both sides of the car (it is flipped so writing reads correctly on each side). Other players see it when they watch your replay or race your ghost. Keep it friendly.</div>
             </div>
           </div>
         </div>

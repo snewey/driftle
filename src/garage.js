@@ -1,6 +1,6 @@
 import { CATALOG, KINDS, KIND_LABEL, DEFAULT_LOADOUT, GLOW_COLORS, TOP3_HINT, isFree, itemById, cleanLoadout } from './catalog.js';
 import { GaragePreview } from './garage-preview.js';
-import { blankDecals, loadDecal, decalIsBlank } from './car.js';
+import { blankDecals, loadDecal, decalIsBlank, CELL, DECAL_CELLS } from './car.js';
 
 // The garage screen: spin your car, buy and fit parts with Drift Coins, and draw on it.
 // Only signed-in players can open it; the database also refuses anyone else.
@@ -20,29 +20,6 @@ function cardSwatch(kind, it) {
   return '';
 }
 
-function starPath(g, x, y, r) {
-  g.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    const rr = i % 2 ? r * 0.42 : r;
-    g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
-  }
-  g.closePath();
-}
-function heartPath(g, x, y, r) {
-  g.beginPath();
-  g.moveTo(x, y + r * 0.9);
-  g.bezierCurveTo(x - r * 1.5, y - r * 0.1, x - r * 0.6, y - r * 1.1, x, y - r * 0.4);
-  g.bezierCurveTo(x + r * 0.6, y - r * 1.1, x + r * 1.5, y - r * 0.1, x, y + r * 0.9);
-  g.closePath();
-}
-function boltPath(g, x, y, r) {
-  const p = [[0.15, -1], [-0.6, 0.1], [-0.05, 0.1], [-0.25, 1], [0.6, -0.2], [0.05, -0.2], [0.4, -1]];
-  g.beginPath();
-  p.forEach(([a, b], i) => (i ? g.lineTo(x + a * r, y + b * r) : g.moveTo(x + a * r, y + b * r)));
-  g.closePath();
-}
-
 export function initGarage({ api, onSaved }) {
   let preview = null;
   let userId = null;
@@ -53,12 +30,12 @@ export function initGarage({ api, onSaved }) {
   let decals = blankDecals();
   let tab = 'car';
   let dirty = false;
-  let surface = 'side';
-  let tool = 'brush';
-  let color = '#ffffff';
-  let size = 10;
+  let tool = 'paint';
+  let color = '#ff3d71';
+  let brush = 1;
   let busy = false;
-  const undo = { side: [], top: [] };
+  let drawing = false;
+  let undo = [];
 
   const isOwned = (id) => {
     const it = itemById(id);
@@ -103,7 +80,17 @@ export function initGarage({ api, onSaved }) {
     const draw = tab === 'draw';
     $('g-items').classList.toggle('hidden', draw);
     $('g-draw').classList.toggle('hidden', !draw);
-    if (draw) return showSurface(surface);
+    $('g-body').classList.toggle('drawing', draw);
+    if (draw !== drawing) {
+      drawing = draw;
+      preview.setGrid(draw);
+      preview.resize();
+      setDrawView(draw ? 'right' : null);
+      if (draw) preview.setZoom(0.72);
+      renderTools();
+      if (draw) msg('Click squares on the car to paint them. Use the view buttons to reach every side.');
+    }
+    if (draw) return;
     const grid = $('g-items');
     grid.innerHTML = '';
     for (const it of CATALOG[tab]) {
@@ -137,7 +124,6 @@ export function initGarage({ api, onSaved }) {
       }
       const pick = () => {
         draft[tab] = it.id;
-        if (tab === 'paint') $('g-draw-wrap').style.background = hex(it.color);
         rebuildPreview();
         touched();
         renderBody();
@@ -173,20 +159,10 @@ export function initGarage({ api, onSaved }) {
     }
   }
 
-  // ---- drawing ----------------------------------------------------------------------
+  // ---- drawing: click squares on the car -------------------------------------------------
 
-  function showSurface(s) {
-    surface = s;
-    $('g-surf-side').classList.toggle('on', s === 'side');
-    $('g-surf-top').classList.toggle('on', s === 'top');
-    const wrap = $('g-draw-wrap');
-    wrap.querySelectorAll('canvas').forEach((c) => c.remove());
-    wrap.classList.toggle('portrait', s === 'top');
-    const cv = decals[s];
-    cv.className = 'draw-cv';
-    wrap.appendChild(cv);
-    $('g-guide').textContent = s === 'side' ? 'REAR  ←   side of the car (both sides)   →  FRONT' : 'FRONT ↑  bonnet, roof and boot  ↓ REAR';
-  }
+  const rgba = (g, cx, cy) => g.getImageData(cx * CELL + CELL / 2, cy * CELL + CELL / 2, 1, 1).data;
+  const same = (p, q) => (p[3] === 0 && q[3] === 0) || (p[0] === q[0] && p[1] === q[1] && p[2] === q[2] && p[3] === q[3]);
 
   function renderTools() {
     const sw = $('g-swatches');
@@ -198,127 +174,150 @@ export function initGarage({ api, onSaved }) {
       b.style.background = c;
       b.addEventListener('click', () => {
         color = c;
-        if (tool === 'eraser') tool = 'brush';
+        if (tool === 'erase' || tool === 'pick') tool = 'paint';
         $('g-color').value = c;
         renderTools();
       });
       sw.appendChild(b);
     }
     for (const t of document.querySelectorAll('#g-tools [data-tool]')) t.classList.toggle('on', t.dataset.tool === tool);
+    for (const t of document.querySelectorAll('#g-sizes [data-size]')) t.classList.toggle('on', +t.dataset.size === brush);
+    if (preview) preview.setPaintMode(tab === 'draw' && tool !== 'turn', paintHandlers);
   }
 
   function snapshot() {
-    const cv = decals[surface];
-    const st = undo[surface];
-    st.push(cv.getContext('2d').getImageData(0, 0, cv.width, cv.height));
-    if (st.length > 25) st.shift();
+    undo.push({
+      side: decals.side.getContext('2d').getImageData(0, 0, decals.side.width, decals.side.height),
+      top: decals.top.getContext('2d').getImageData(0, 0, decals.top.width, decals.top.height),
+    });
+    if (undo.length > 30) undo.shift();
   }
 
-  function pointer(cv, e) {
-    const r = cv.getBoundingClientRect();
-    return [((e.clientX - r.left) * cv.width) / r.width, ((e.clientY - r.top) * cv.height) / r.height];
+  function stampCells(which, cx, cy) {
+    const g = decals[which].getContext('2d');
+    const [W, H] = DECAL_CELLS[which];
+    const off = Math.floor((brush - 1) / 2);
+    for (let y = 0; y < brush; y++) {
+      for (let x = 0; x < brush; x++) {
+        const X = cx - off + x;
+        const Y = cy - off + y;
+        if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+        if (tool === 'erase') g.clearRect(X * CELL, Y * CELL, CELL, CELL);
+        else {
+          g.clearRect(X * CELL, Y * CELL, CELL, CELL);
+          g.fillStyle = color;
+          g.fillRect(X * CELL, Y * CELL, CELL, CELL);
+        }
+      }
+    }
   }
 
-  function stamp(g, x, y) {
-    const r = size * 2.2 + 8;
-    g.fillStyle = color;
-    g.strokeStyle = 'rgba(0,0,0,.55)';
-    g.lineWidth = Math.max(1.5, r * 0.08);
-    if (tool === 'star') starPath(g, x, y, r);
-    else if (tool === 'heart') heartPath(g, x, y, r);
-    else boltPath(g, x, y, r);
-    g.fill();
-    g.stroke();
+  // Every square between two hits, so quick drags leave no gaps.
+  function line(which, x0, y0, x1, y1) {
+    const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+    for (let i = 0; i <= n; i++) stampCells(which, Math.round(x0 + ((x1 - x0) * i) / n), Math.round(y0 + ((y1 - y0) * i) / n));
   }
 
-  function wireDrawing() {
-    const wrap = $('g-draw-wrap');
-    let drawing = false;
-    let last = null;
-    wrap.addEventListener('pointerdown', (e) => {
-      const cv = decals[surface];
-      if (e.target !== cv) return;
-      e.preventDefault();
-      const [x, y] = pointer(cv, e);
-      const g = cv.getContext('2d');
+  function floodFill(which, cx, cy) {
+    const g = decals[which].getContext('2d');
+    const [W, H] = DECAL_CELLS[which];
+    const target = rgba(g, cx, cy).slice();
+    const c = document.createElement('canvas').getContext('2d');
+    c.fillStyle = color;
+    c.fillRect(0, 0, 1, 1);
+    const want = c.getImageData(0, 0, 1, 1).data;
+    if (same(target, want)) return;
+    const seen = new Uint8Array(W * H);
+    const stack = [[cx, cy]];
+    while (stack.length) {
+      const [x, y] = stack.pop();
+      if (x < 0 || y < 0 || x >= W || y >= H || seen[y * W + x]) continue;
+      seen[y * W + x] = 1;
+      if (!same(rgba(g, x, y), target)) continue;
+      g.clearRect(x * CELL, y * CELL, CELL, CELL);
+      g.fillStyle = color;
+      g.fillRect(x * CELL, y * CELL, CELL, CELL);
+      stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+  }
+
+  let lastHit = null;
+  const paintHandlers = {
+    down(hit) {
+      lastHit = null;
+      if (!hit) return;
+      if (tool === 'pick') {
+        const d = rgba(decals[hit.which].getContext('2d'), hit.cx, hit.cy);
+        if (d[3] > 0) {
+          color = '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('');
+          $('g-color').value = color;
+          tool = 'paint';
+          renderTools();
+          msg('Colour picked.');
+        }
+        return;
+      }
       snapshot();
-      if (tool === 'text') {
-        const txt = ($('g-text').value || '').slice(0, 14);
-        const fs = size * 3 + 14;
-        g.font = `800 ${fs}px system-ui, sans-serif`;
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        g.lineJoin = 'round';
-        g.lineWidth = Math.max(2, fs * 0.12);
-        g.strokeStyle = 'rgba(0,0,0,.6)';
-        g.strokeText(txt, x, y);
-        g.fillStyle = color;
-        g.fillText(txt, x, y);
-      } else if (tool === 'star' || tool === 'heart' || tool === 'bolt') {
-        stamp(g, x, y);
-      } else {
-        drawing = true;
-        last = [x, y];
-        cv.setPointerCapture(e.pointerId);
-        g.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
-        g.strokeStyle = color;
-        g.fillStyle = color;
-        g.lineWidth = size;
-        g.lineCap = 'round';
-        g.lineJoin = 'round';
-        g.beginPath();
-        g.arc(x, y, size / 2, 0, Math.PI * 2);
-        g.fill();
+      if (tool === 'fill') floodFill(hit.which, hit.cx, hit.cy);
+      else {
+        stampCells(hit.which, hit.cx, hit.cy);
+        lastHit = hit;
       }
       preview.markDecalsChanged();
       touched();
-    });
-    wrap.addEventListener('pointermove', (e) => {
-      if (!drawing) return;
-      const cv = decals[surface];
-      const g = cv.getContext('2d');
-      const [x, y] = pointer(cv, e);
-      g.beginPath();
-      g.moveTo(last[0], last[1]);
-      g.lineTo(x, y);
-      g.stroke();
-      last = [x, y];
+    },
+    move(hit) {
+      if (!hit || tool === 'fill' || tool === 'pick') return;
+      if (lastHit && lastHit.which === hit.which) line(hit.which, lastHit.cx, lastHit.cy, hit.cx, hit.cy);
+      else stampCells(hit.which, hit.cx, hit.cy);
+      lastHit = hit;
       preview.markDecalsChanged();
-    });
-    const end = () => {
-      if (!drawing) return;
-      drawing = false;
-      decals[surface].getContext('2d').globalCompositeOperation = 'source-over';
-    };
-    wrap.addEventListener('pointerup', end);
-    wrap.addEventListener('pointercancel', end);
+    },
+    up() {
+      lastHit = null;
+    },
+  };
 
-    $('g-surf-side').addEventListener('click', () => showSurface('side'));
-    $('g-surf-top').addEventListener('click', () => showSurface('top'));
+  function setDrawView(name) {
+    preview.setView(name);
+    for (const b of document.querySelectorAll('#g-views [data-view]')) b.classList.toggle('on', b.dataset.view === name);
+  }
+
+  function wireDrawing() {
     $('g-color').addEventListener('input', (e) => {
       color = e.target.value;
-      if (tool === 'eraser') tool = 'brush';
+      if (tool === 'erase' || tool === 'pick') tool = 'paint';
       renderTools();
     });
-    $('g-size').addEventListener('input', (e) => (size = +e.target.value));
     for (const t of document.querySelectorAll('#g-tools [data-tool]')) {
       t.addEventListener('click', () => {
         tool = t.dataset.tool;
         renderTools();
       });
     }
+    for (const t of document.querySelectorAll('#g-sizes [data-size]')) {
+      t.addEventListener('click', () => {
+        brush = +t.dataset.size;
+        renderTools();
+      });
+    }
+    for (const b of document.querySelectorAll('#g-views [data-view]')) b.addEventListener('click', () => setDrawView(b.dataset.view));
+    $('g-turn-l').addEventListener('click', () => preview.turn(-Math.PI / 12));
+    $('g-turn-r').addEventListener('click', () => preview.turn(Math.PI / 12));
+    $('g-zoom-in').addEventListener('click', () => preview.setZoom(preview.zoom * 0.85));
+    $('g-zoom-out').addEventListener('click', () => preview.setZoom(preview.zoom / 0.85));
     $('g-undo').addEventListener('click', () => {
-      const st = undo[surface];
-      if (!st.length) return;
-      decals[surface].getContext('2d').putImageData(st.pop(), 0, 0);
+      const st = undo.pop();
+      if (!st) return;
+      decals.side.getContext('2d').putImageData(st.side, 0, 0);
+      decals.top.getContext('2d').putImageData(st.top, 0, 0);
       preview.markDecalsChanged();
       touched();
     });
     $('g-clear').addEventListener('click', () => {
-      if (decalIsBlank(decals[surface])) return;
+      if (decalIsBlank(decals.side) && decals.top && decalIsBlank(decals.top)) return;
       snapshot();
-      const cv = decals[surface];
-      cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+      for (const w of ['side', 'top']) decals[w].getContext('2d').clearRect(0, 0, decals[w].width, decals[w].height);
       preview.markDecalsChanged();
       touched();
     });
@@ -356,11 +355,9 @@ export function initGarage({ api, onSaved }) {
       saved = cleanLoadout(row);
       draft = { ...saved };
       decals = { side: await loadDecal(row && row.decal_side, 'side'), top: await loadDecal(row && row.decal_top, 'top') };
-      undo.side = [];
-      undo.top = [];
+      undo = [];
       dirty = false;
       $('g-save').classList.remove('pulse');
-      $('g-draw-wrap').style.background = hex(itemById(draft.paint).color);
       rebuildPreview();
       renderTabs();
       renderTools();

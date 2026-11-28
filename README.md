@@ -118,3 +118,12 @@ only with Row Level Security turned on. The service role key must never be in th
 - **Top-3 rewards** (migrations `0006`, `0007`): the Rainbow flame and glow can't be bought. You unlock them by finishing in the OFFICIAL top 3 of a day that has closed (UTC midnight + 10 min grace). The garage calls `claim_top3()` when it opens. Holding a top-3 spot during the day is not enough. Past-track practice never counts. Items flagged `top3` in `src/catalog.js` / `top3_only` in `shop_items`.
 - **Renaming** (migration `0008`): signed-in players can change their driver name once every 7 days via `rename_driver()`. Names stay unique (case, spaces, `-` and `_` ignored) and the old name is freed. Direct edits to the name column are still blocked.
 - **Paints** (migration `0009`): Colour Shift removed; 10 more colours added (5 free, 5 for 200–250 coins).
+
+## v0.8: Paint squares on the car
+
+The garage Draw tab no longer has the flat brush, text and star/heart/bolt tools. Instead the car is covered in a pixel grid and you click or drag squares directly on the 3D car.
+
+- Views (right, left, front, back, top), turn buttons and scroll-to-zoom help you reach every part.
+- Tools: paint, erase, fill, pick colour, undo, clear all; brush 1, 2x2 or 3x3 squares.
+- Side design is mirrored onto both flanks (so writing reads correctly on each side); the top design covers bonnet, roof and boot.
+- Drawings are still stored as small PNGs in the loadout. Older smooth drawings are scaled onto the grid and look softer.

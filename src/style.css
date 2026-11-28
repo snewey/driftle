@@ -224,18 +224,16 @@ kbd { background: #1a2231; border: 1px solid var(--line); border-bottom-width: 2
 .g-reward { margin-top:auto; padding:6px 8px; border-radius:6px; border:1px dashed #ffd23b88; color:#ffd23b; font:800 11px/1.2 inherit; text-align:center; letter-spacing:.06em; }
 .g-buy.poor { background:#4a4630; color:#bba96a; }
 #g-draw { display:flex; flex-direction:column; gap:8px; }
-.g-surf { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .chip-inline.on { background:var(--accent2); color:#06121a; border-color:var(--accent2); }
-#g-draw-wrap { position:relative; border-radius:8px; border:1px solid var(--line); overflow:hidden; width:100%; max-width:470px; aspect-ratio:512/192; touch-action:none; background:#ff3d71; }
-#g-draw-wrap.portrait { max-width:230px; aspect-ratio:256/448; }
-.draw-cv { width:100%; height:100%; display:block; cursor:crosshair; touch-action:none; }
-#g-tools { display:flex; flex-wrap:wrap; gap:6px; }
+.g-btnrow { display:flex; flex-wrap:wrap; gap:6px; }
+.g-body.drawing { grid-template-columns:minmax(300px,56%) 1fr; }
+.g-body.drawing #g-canvas { height:480px; }
+#g-draw .label { margin:4px 0 0; }
 .g-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 #g-swatches { display:flex; gap:5px; flex-wrap:wrap; }
 .swatch { width:22px; height:22px; border-radius:50%; border:2px solid rgba(255,255,255,.3); cursor:pointer; padding:0; }
 .swatch.on { border-color:#fff; box-shadow:0 0 0 2px var(--accent); }
 #g-color { width:34px; height:26px; padding:0; border:0; background:none; }
-#g-text { width:110px; }
 .g-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 #g-msg { color:var(--muted); }
 #g-msg.bad { color:#ff8a8a; }
